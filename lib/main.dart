@@ -1,7 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart'; // Used for date formatting
 
-// Import the data models and pages
 import 'data_models.dart';
 import 'home_page.dart';
 import 'courses_page.dart';
@@ -114,6 +113,17 @@ class _MainScaffoldState extends State<MainScaffold> {
     setState(() {
       pinnedMessages.remove(message);
     });
+  }
+  void removeCourse(Course course) {
+    setState(() => courses.remove(course));
+  }
+
+  void removeTask(Task task) {
+    setState(() => tasks.remove(task));
+  }
+
+  void removeReminder(Reminder reminder) {
+    setState(() => reminders.remove(reminder));
   }
   void _onItemTapped(int index) {
     setState(() {
