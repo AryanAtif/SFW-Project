@@ -4,8 +4,17 @@ import 'data_models.dart';
 class CoursesPage extends StatelessWidget {
   final List<Course> courses;
   final Function(Course) addCourse;
+  final Function(Course) removeCourse;
 
-  const CoursesPage({super.key, required this.courses, required this.addCourse});
+  const CoursesPage
+  (
+    {
+      super.key,
+      required this.courses,
+      required this.addCourse,
+      required this.removeCourse,
+    }
+  );
 
   @override
   Widget build(BuildContext context) {
@@ -29,7 +38,10 @@ class CoursesPage extends StatelessWidget {
           const SizedBox(height: 20),
 
           // Dynamic Course Buttons
-          ...courses.map((course) => _CourseButton(course: course)).toList(),
+          ...courses.map((course) => _CourseButton(
+            course: course,
+            onRemove: removeCourse,
+            )).toList(),
           
           const SizedBox(height: 40),
           
@@ -99,6 +111,104 @@ class CoursesPage extends StatelessWidget {
 }
 
 // Course button widget (unchanged visually)
+
+class _CourseButton extends StatefulWidget {
+  final Course course;
+  final Function(Course) onRemove;
+
+  const _CourseButton({
+    required this.course,
+    required this.onRemove,
+  });
+
+  @override
+  State<_CourseButton> createState() => _CourseButtonState();
+}
+
+class _CourseButtonState extends State<_CourseButton> {
+  bool _isHovered = false;
+
+  @override
+  Widget build(BuildContext context) {
+    return Padding(
+      padding: const EdgeInsets.symmetric(vertical: 10.0),
+      child: MouseRegion(
+        onEnter: (_) => setState(() => _isHovered = true),
+        onExit: (_) => setState(() => _isHovered = false),
+        child: Material(
+          color: const Color(0xFFA2846A), 
+          borderRadius: BorderRadius.circular(5.0),
+          child: InkWell(
+            onTap: () {
+              ScaffoldMessenger.of(context).showSnackBar(
+                SnackBar(content: Text('Tapped on ${widget.course.title} (Detail Page)'))
+              );
+            },
+            child: Container(
+              padding: const EdgeInsets.all(20.0),
+              child: Row(
+                children: [
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          widget.course.title,
+                          style: Theme.of(context).textTheme.titleLarge!.copyWith(color: Colors.white),
+                        ),
+                        const SizedBox(height: 5),
+                        Text(
+                          'Credit Hours: ${widget.course.creditHours}',
+                          style: Theme.of(context).textTheme.bodyMedium!.copyWith(color: Colors.white70),
+                        ),
+                      ],
+                    ),
+                  ),
+                  if (_isHovered)
+                    IconButton(
+                      icon: const Icon(Icons.delete_outline, color: Colors.white, size: 24),
+                      onPressed: () => _showDeleteConfirmation(context),
+                      padding: EdgeInsets.zero,
+                    ),
+                ],
+              ),
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+
+  void _showDeleteConfirmation(BuildContext context) {
+    showDialog(
+      context: context,
+      builder: (context) {
+        return AlertDialog(
+          title: const Text('Delete Course'),
+          content: Text('Are you sure you want to delete "${widget.course.title}"?'),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(context),
+              child: const Text('Cancel'),
+            ),
+            TextButton(
+              onPressed: () {
+                widget.onRemove(widget.course);
+                Navigator.pop(context);
+                ScaffoldMessenger.of(context).showSnackBar(
+                  const SnackBar(content: Text('Course deleted.'))
+                );
+              },
+              child: const Text('Delete', style: TextStyle(color: Colors.red)),
+            ),
+          ],
+        );
+      },
+    );
+  }
+}
+
+/*
 class _CourseButton extends StatelessWidget {
   final Course course;
 
@@ -140,3 +250,4 @@ class _CourseButton extends StatelessWidget {
     );
   }
 }
+*/
