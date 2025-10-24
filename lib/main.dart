@@ -137,10 +137,34 @@ class _MainScaffoldState extends State<MainScaffold> {
   Widget build(BuildContext context) {
     // Pages now receive the state data and mutation callbacks
     final List<Widget> pages = <Widget>[
-      HomePage(pinnedMessages: pinnedMessages, tasks: tasks, addPinnedMessage: addPinnedMessage, removePinnedMessage: removePinnedMessage),
-      CoursesPage(courses: courses, addCourse: addCourse),
-      WeeklyCalendarPage(reminders: reminders, addReminder: addReminder),
-      TasksDuePage(tasks: tasks, addTask: addTask, toggleTaskCompletion: toggleTaskCompletion),
+      HomePage
+      (
+        pinnedMessages: pinnedMessages,
+        tasks: tasks, 
+        addPinnedMessage: addPinnedMessage, 
+        removePinnedMessage: removePinnedMessage
+      ),
+
+
+      CoursesPage
+      (
+        courses: courses,
+        addCourse: addCourse
+      ),
+
+      WeeklyCalendarPage
+      (
+        reminders: reminders,
+        addReminder: addReminder
+      ),
+      
+      TasksDuePage
+      (
+        tasks: tasks, 
+        addTask: addTask,
+        toggleTaskCompletion: toggleTaskCompletion
+      ),
+
       const Center(child: Text("AI Assistant Page (Future Feature)")), 
     ];
 
