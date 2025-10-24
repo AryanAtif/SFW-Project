@@ -148,7 +148,8 @@ class _MainScaffoldState extends State<MainScaffold> {
         pinnedMessages: pinnedMessages,
         tasks: tasks, 
         addPinnedMessage: addPinnedMessage, 
-        removePinnedMessage: removePinnedMessage
+        removePinnedMessage: removePinnedMessage,
+        insertPinnedMessageAt: insertPinnedMessageAt
       ),
 
 

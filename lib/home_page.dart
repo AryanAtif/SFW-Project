@@ -80,10 +80,8 @@ class HomePage extends StatelessWidget {
                             action: SnackBarAction(
                               label: 'Undo',
                               onPressed: () {
-                                // Re-insert at the same position
-                                pinnedMessages.insert(removedIndex, removedMessage);
-                                addPinnedMessage(removedMessage); // This will add to top, so we need to fix it
-                                // Actually, we need to handle this better. See below.
+                              insertPinnedMessageAt(removedIndex, removedMessage);
+                              
                             },
                             ),
                          )
