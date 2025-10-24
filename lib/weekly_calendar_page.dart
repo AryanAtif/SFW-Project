@@ -6,8 +6,15 @@ import 'data_models.dart';
 class WeeklyCalendarPage extends StatefulWidget {
   final List<Reminder> reminders;
   final Function(Reminder) addReminder;
+  final Function(Reminder) removeReminder;
 
-  const WeeklyCalendarPage({super.key, required this.reminders, required this.addReminder});
+  const WeeklyCalendarPage
+  ({
+    super.key,
+    required this.reminders, 
+    required this.addReminder,
+    required this.removeReminder,
+    });
 
   @override
   State<WeeklyCalendarPage> createState() => _WeeklyCalendarPageState();
@@ -161,29 +168,90 @@ class _WeeklyCalendarPageState extends State<WeeklyCalendarPage> {
           const SizedBox(height: 10),
 
           // Dynamic List of Reminders (for the selected/focused day)
-          ...remindersForSelectedDay.map((reminder) => Row(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Padding(
-                    padding: const EdgeInsets.only(top: 8.0, right: 8.0),
-                    child: Container(
-                      width: 8, height: 8,
-                      decoration: BoxDecoration(color: Colors.red, borderRadius: BorderRadius.circular(4)),
-                    ),
-                  ),
-                  Expanded(
-                    child: Text(
-                      '${reminder.description} - ${DateFormat('h:mm a').format(reminder.date)}',
-                      style: Theme.of(context).textTheme.bodyMedium,
-                    ),
-                  ),
-                ],
-              )).toList(),
+          ...remindersForSelectedDay.map((reminder) => _ReminderItem(
+            reminder: reminder,
+            onRemove: (Reminder reminder) {
+              final removedReminder = reminder;
+              final removedIndex = widget.reminders.indexOf(reminder);
+              widget.removeReminder(reminder);
+    
+            ScaffoldMessenger.of(context).showSnackBar(
+              SnackBar(
+                content: const Text('Reminder removed.'),
+                action: SnackBarAction(
+                  label: 'Undo',
+                  onPressed: () {
+                  widget.reminders.insert(removedIndex, removedReminder);
+                  setState(() {}); // Force rebuild
+                  },
+                ),
+                duration: const Duration(seconds: 3),
+              )
+            );
+          },
+          )).toList(),
           
           const SizedBox(height: 40),
           
           // Removed < Back text
         ],
+      ),
+    );
+  }
+}
+
+class _ReminderItem extends StatefulWidget {
+  final Reminder reminder;
+  final Function(Reminder) onRemove;
+
+  const _ReminderItem({
+    required this.reminder,
+    required this.onRemove,
+  });
+
+  @override
+  State<_ReminderItem> createState() => _ReminderItemState();
+}
+
+class _ReminderItemState extends State<_ReminderItem> {
+  bool _isHovered = false;
+
+  @override
+  Widget build(BuildContext context) {
+    return MouseRegion(
+      onEnter: (_) => setState(() => _isHovered = true),
+      onExit: (_) => setState(() => _isHovered = false),
+      child: Padding(
+        padding: const EdgeInsets.only(bottom: 8.0),
+        child: Row(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Padding(
+              padding: const EdgeInsets.only(top: 8.0, right: 8.0),
+              child: Container(
+                width: 8, 
+                height: 8,
+                decoration: BoxDecoration(
+                  color: Colors.red, 
+                  borderRadius: BorderRadius.circular(4)
+                ),
+              ),
+            ),
+            Expanded(
+              child: Text(
+                '${widget.reminder.description} - ${DateFormat('h:mm a').format(widget.reminder.date)}',
+                style: Theme.of(context).textTheme.bodyMedium,
+              ),
+            ),
+            if (_isHovered)
+              IconButton(
+                icon: Icon(Icons.delete_outline, color: Colors.brown.shade600, size: 20),
+                onPressed: () => widget.onRemove(widget.reminder),
+                padding: EdgeInsets.zero,
+                constraints: const BoxConstraints(),
+              ),
+          ],
+        ),
       ),
     );
   }
