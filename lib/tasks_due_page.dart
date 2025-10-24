@@ -186,7 +186,7 @@ Widget _buildTaskItem(BuildContext context, Task task, Function(Task) onToggle) 
   }
 }
 
-class _TaskItem extends StatefulWidget {
+class _TaskItem extends StatelessWidget {
   final Task task;
   final Function(Task) onToggle;
   final Function(Task) onRemove;
@@ -198,47 +198,35 @@ class _TaskItem extends StatefulWidget {
   });
 
   @override
-  State<_TaskItem> createState() => _TaskItemState();
-}
-
-class _TaskItemState extends State<_TaskItem> {
-  bool _isHovered = false;
-
-  @override
   Widget build(BuildContext context) {
     return Padding(
       padding: const EdgeInsets.only(bottom: 8.0),
-      child: MouseRegion(
-        onEnter: (_) => setState(() => _isHovered = true),
-        onExit: (_) => setState(() => _isHovered = false),
-        child: InkWell(
-          onTap: () => widget.onToggle(widget.task),
-          child: Row(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Icon(
-                widget.task.isCompleted ? Icons.check_circle_outline : Icons.circle_outlined,
-                color: Colors.brown.shade800,
-                size: 18,
-              ),
-              const SizedBox(width: 8),
-              Expanded(
-                child: Text(
-                  widget.task.description,
-                  style: Theme.of(context).textTheme.bodyMedium!.copyWith(
-                    decoration: widget.task.isCompleted ? TextDecoration.lineThrough : null,
-                  ),
+      child: InkWell(
+        onTap: () => onToggle(task),
+        child: Row(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Icon(
+              task.isCompleted ? Icons.check_circle_outline : Icons.circle_outlined,
+              color: Colors.brown.shade800,
+              size: 18,
+            ),
+            const SizedBox(width: 8),
+            Expanded(
+              child: Text(
+                task.description,
+                style: Theme.of(context).textTheme.bodyMedium!.copyWith(
+                  decoration: task.isCompleted ? TextDecoration.lineThrough : null,
                 ),
               ),
-              if (_isHovered)
-                IconButton(
-                  icon: Icon(Icons.delete_outline, color: Colors.brown.shade600, size: 20),
-                  onPressed: () => widget.onRemove(widget.task),
-                  padding: EdgeInsets.zero,
-                  constraints: const BoxConstraints(),
-                ),
-            ],
-          ),
+            ),
+            IconButton(
+              icon: Icon(Icons.delete_outline, color: Colors.brown.shade600, size: 20),
+              onPressed: () => onRemove(task),
+              padding: const EdgeInsets.all(8.0),
+              constraints: const BoxConstraints(),
+            ),
+          ],
         ),
       ),
     );

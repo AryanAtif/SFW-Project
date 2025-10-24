@@ -112,7 +112,7 @@ class CoursesPage extends StatelessWidget {
 
 // Course button widget (unchanged visually)
 
-class _CourseButton extends StatefulWidget {
+class _CourseButton extends StatelessWidget {
   final Course course;
   final Function(Course) onRemove;
 
@@ -122,56 +122,44 @@ class _CourseButton extends StatefulWidget {
   });
 
   @override
-  State<_CourseButton> createState() => _CourseButtonState();
-}
-
-class _CourseButtonState extends State<_CourseButton> {
-  bool _isHovered = false;
-
-  @override
   Widget build(BuildContext context) {
     return Padding(
       padding: const EdgeInsets.symmetric(vertical: 10.0),
-      child: MouseRegion(
-        onEnter: (_) => setState(() => _isHovered = true),
-        onExit: (_) => setState(() => _isHovered = false),
-        child: Material(
-          color: const Color(0xFFA2846A), 
-          borderRadius: BorderRadius.circular(5.0),
-          child: InkWell(
-            onTap: () {
-              ScaffoldMessenger.of(context).showSnackBar(
-                SnackBar(content: Text('Tapped on ${widget.course.title} (Detail Page)'))
-              );
-            },
-            child: Container(
-              padding: const EdgeInsets.all(20.0),
-              child: Row(
-                children: [
-                  Expanded(
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Text(
-                          widget.course.title,
-                          style: Theme.of(context).textTheme.titleLarge!.copyWith(color: Colors.white),
-                        ),
-                        const SizedBox(height: 5),
-                        Text(
-                          'Credit Hours: ${widget.course.creditHours}',
-                          style: Theme.of(context).textTheme.bodyMedium!.copyWith(color: Colors.white70),
-                        ),
-                      ],
-                    ),
+      child: Material(
+        color: const Color(0xFFA2846A), 
+        borderRadius: BorderRadius.circular(5.0),
+        child: InkWell(
+          onTap: () {
+            ScaffoldMessenger.of(context).showSnackBar(
+              SnackBar(content: Text('Tapped on ${course.title} (Detail Page)'))
+            );
+          },
+          child: Container(
+            padding: const EdgeInsets.all(20.0),
+            child: Row(
+              children: [
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        course.title,
+                        style: Theme.of(context).textTheme.titleLarge!.copyWith(color: Colors.white),
+                      ),
+                      const SizedBox(height: 5),
+                      Text(
+                        'Credit Hours: ${course.creditHours}',
+                        style: Theme.of(context).textTheme.bodyMedium!.copyWith(color: Colors.white70),
+                      ),
+                    ],
                   ),
-                  if (_isHovered)
-                    IconButton(
-                      icon: const Icon(Icons.delete_outline, color: Colors.white, size: 24),
-                      onPressed: () => _showDeleteConfirmation(context),
-                      padding: EdgeInsets.zero,
-                    ),
-                ],
-              ),
+                ),
+                IconButton(
+                  icon: const Icon(Icons.delete_outline, color: Colors.white, size: 24),
+                  onPressed: () => _showDeleteConfirmation(context),
+                  padding: const EdgeInsets.all(8.0),
+                ),
+              ],
             ),
           ),
         ),
@@ -185,7 +173,7 @@ class _CourseButtonState extends State<_CourseButton> {
       builder: (context) {
         return AlertDialog(
           title: const Text('Delete Course'),
-          content: Text('Are you sure you want to delete "${widget.course.title}"?'),
+          content: Text('Are you sure you want to delete "${course.title}"?'),
           actions: [
             TextButton(
               onPressed: () => Navigator.pop(context),
@@ -193,7 +181,7 @@ class _CourseButtonState extends State<_CourseButton> {
             ),
             TextButton(
               onPressed: () {
-                widget.onRemove(widget.course);
+                onRemove(course);
                 Navigator.pop(context);
                 ScaffoldMessenger.of(context).showSnackBar(
                   const SnackBar(content: Text('Course deleted.'))
