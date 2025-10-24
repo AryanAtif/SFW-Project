@@ -5,12 +5,15 @@ class HomePage extends StatelessWidget {
   final List<Task> tasks; // Must be List<Task>
   final Function(String) addPinnedMessage;
   final Function(String) removePinnedMessage;
+  final Function(int, String) insertPinnedMessageAt;
     const HomePage({
         super.key, 
         required this.pinnedMessages, 
         required this.tasks,
         required this.addPinnedMessage,
         required this.removePinnedMessage,
+        required this.insertPinnedMessageAt,
+        
     });
 
   @override
@@ -229,6 +232,54 @@ class HomePage extends StatelessWidget {
           ],
         );
       },
+    );
+  }
+  
+}
+// Add this new widget class at the bottom of home_page.dart
+class _PinnedMessageItem extends StatefulWidget {
+  final String message;
+  final VoidCallback onDelete;
+
+  const _PinnedMessageItem({
+    required this.message,
+    required this.onDelete,
+  });
+
+  @override
+  State<_PinnedMessageItem> createState() => _PinnedMessageItemState();
+}
+
+class _PinnedMessageItemState extends State<_PinnedMessageItem> {
+  bool _isHovered = false;
+
+  @override
+  Widget build(BuildContext context) {
+    return MouseRegion(
+      onEnter: (_) => setState(() => _isHovered = true),
+      onExit: (_) => setState(() => _isHovered = false),
+      child: Padding(
+        padding: const EdgeInsets.symmetric(vertical: 5.0),
+        child: Row(
+          children: [
+            Expanded(
+              child: Text(
+                '📌 ${widget.message}',
+                style: Theme.of(context).textTheme.bodyMedium,
+                maxLines: 2,
+                overflow: TextOverflow.ellipsis,
+              ),
+            ),
+            if (_isHovered)
+              IconButton(
+                icon: Icon(Icons.delete_outline, color: Colors.brown.shade600, size: 20),
+                onPressed: widget.onDelete,
+                padding: EdgeInsets.zero,
+                constraints: const BoxConstraints(),
+              ),
+          ],
+        ),
+      ),
     );
   }
 }
