@@ -1,11 +1,13 @@
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart'; // Used for date formatting
+import 'package:flutter_dotenv/flutter_dotenv.dart'; 
 
 import 'data_models.dart';
 import 'home_page.dart';
 import 'courses_page.dart';
 import 'tasks_due_page.dart';
-import 'weekly_calendar_page.dart'; 
+import 'weekly_calendar_page.dart';
+import 'ai_assistant_page.dart';
 
 // NOTE: Add 'intl' and 'table_calendar' to your pubspec.yaml file
 // dependencies:
@@ -175,7 +177,7 @@ class _MainScaffoldState extends State<MainScaffold> {
         removeTask: removeTask
       ),
 
-      const Center(child: Text("AI Assistant Page (Future Feature)")), 
+        const AIAssistantPage()    
     ];
 
     return Scaffold(
