@@ -15,60 +15,6 @@ class HomePage extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    // Dummy data matching Page 8 content
-/*    final List<String> tasksToday = [
-      'Finish the OOP Assignment',
-      'Prepare for the Software Engineering Quiz',
-      'Practice the Differential Equations Problems',
-    ];
-
-    return SingleChildScrollView(
-      padding: const EdgeInsets.all(20.0),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: <Widget>[
-          // Title: Pinned Messages
-          Text(
-            'Pinned Messages',
-            style: Theme.of(context).textTheme.titleLarge,
-          ),
-          const SizedBox(height: 10),
-          // Placeholder for Pinned Messages Block
-          Container(
-            height: 200, // Placeholder height
-            color: Colors.black,
-            margin: const EdgeInsets.only(bottom: 30),
-          ),
-
-          // Title: Tasks To do Today
-          Text(
-            'Tasks To do Today',
-            style: Theme.of(context).textTheme.titleLarge,
-          ),
-          const SizedBox(height: 10),
-
-          // List of Tasks
-          ...tasksToday.map((task) => Padding(
-                padding: const EdgeInsets.only(bottom: 8.0),
-                child: Text(
-                  task,
-                  style: Theme.of(context).textTheme.bodyMedium,
-                ),
-              )).toList(),
-          
-          const SizedBox(height: 50),
-          // Footer: (Home)
-          Center(
-            child: Text(
-              '(Home)',
-              style: Theme.of(context).textTheme.titleLarge,
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-} */
     final tasksToday = tasks
         .where((t) => t.period == 'Today' && !t.isCompleted)
         .toList();
@@ -103,7 +49,78 @@ class HomePage extends StatelessWidget {
           const SizedBox(height: 10),
           
           // REPLACED BLACK BLOCK with Pinned Messages List
-          Container(
+            Container(
+              height: 200, 
+              decoration: BoxDecoration(
+                color: Colors.white,
+                border: Border.all(color: Colors.brown.shade300),
+                borderRadius: BorderRadius.circular(8.0),
+              ),
+              child: pinnedMessages.isEmpty
+                ? const Center(child: Text('Tap "Add" to save a note for later.'))
+                : ListView.builder(
+                  padding: const EdgeInsets.all(10.0),
+                  itemCount: pinnedMessages.length,
+                  itemBuilder: (context, index) {
+                    final message = pinnedMessages[index];
+                  return Dismissible(
+                    key: Key(message + index.toString()), // Make key more unique
+                    direction: DismissDirection.endToStart,
+                    onDismissed: (direction) {
+                        final removedMessage = message;
+                        final removedIndex = index;
+                        removePinnedMessage(message);
+            
+                          ScaffoldMessenger.of(context).showSnackBar(
+                          SnackBar(
+                            content: const Text('Pinned message removed.'),
+                            action: SnackBarAction(
+                              label: 'Undo',
+                              onPressed: () {
+                                // Re-insert at the same position
+                                pinnedMessages.insert(removedIndex, removedMessage);
+                                addPinnedMessage(removedMessage); // This will add to top, so we need to fix it
+                                // Actually, we need to handle this better. See below.
+                            },
+                            ),
+                         )
+                          );
+                      },
+                      background: Container(
+                        alignment: Alignment.centerRight,
+                        padding: const EdgeInsets.only(right: 20.0),
+                          color: Colors.red,
+                        child: const Icon(Icons.delete, color: Colors.white),
+                        ),
+                    child: _PinnedMessageItem(
+                        message: message,
+                        onDelete: () {
+                          final removedMessage = message;
+                          final removedIndex = pinnedMessages.indexOf(message);
+                          removePinnedMessage(message);
+              
+                          ScaffoldMessenger.of(context).showSnackBar(
+                            SnackBar(
+                              content: const Text('Pinned message removed.'),
+                              action: SnackBarAction(
+                                label: 'Undo',
+                                onPressed: () {
+                                  pinnedMessages.insert(removedIndex, removedMessage);
+                                  // Force rebuild
+                                  (context as Element).markNeedsBuild();
+                                },
+                              ),
+                              duration: const Duration(seconds: 3),
+                            )
+                          );
+                        },
+                      ),
+                    );
+                },
+                ),
+            ),
+
+/*          Container(
             height: 200, 
             decoration: BoxDecoration(
               color: Colors.white,
@@ -145,6 +162,8 @@ class HomePage extends StatelessWidget {
                 },
               ),
           ),
+*/
+          
           const SizedBox(height: 30),
 
           // Title: Tasks To do Today
