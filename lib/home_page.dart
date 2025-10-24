@@ -235,7 +235,7 @@ class HomePage extends StatelessWidget {
   
 }
 // Add this new widget class at the bottom of home_page.dart
-class _PinnedMessageItem extends StatefulWidget {
+class _PinnedMessageItem extends StatelessWidget {
   final String message;
   final VoidCallback onDelete;
 
@@ -245,38 +245,26 @@ class _PinnedMessageItem extends StatefulWidget {
   });
 
   @override
-  State<_PinnedMessageItem> createState() => _PinnedMessageItemState();
-}
-
-class _PinnedMessageItemState extends State<_PinnedMessageItem> {
-  bool _isHovered = false;
-
-  @override
   Widget build(BuildContext context) {
-    return MouseRegion(
-      onEnter: (_) => setState(() => _isHovered = true),
-      onExit: (_) => setState(() => _isHovered = false),
-      child: Padding(
-        padding: const EdgeInsets.symmetric(vertical: 5.0),
-        child: Row(
-          children: [
-            Expanded(
-              child: Text(
-                '📌 ${widget.message}',
-                style: Theme.of(context).textTheme.bodyMedium,
-                maxLines: 2,
-                overflow: TextOverflow.ellipsis,
-              ),
+    return Padding(
+      padding: const EdgeInsets.symmetric(vertical: 5.0),
+      child: Row(
+        children: [
+          Expanded(
+            child: Text(
+              '📌 ${message}',
+              style: Theme.of(context).textTheme.bodyMedium,
+              maxLines: 2,
+              overflow: TextOverflow.ellipsis,
             ),
-            if (_isHovered)
-              IconButton(
-                icon: Icon(Icons.delete_outline, color: Colors.brown.shade600, size: 20),
-                onPressed: widget.onDelete,
-                padding: EdgeInsets.zero,
-                constraints: const BoxConstraints(),
-              ),
-          ],
-        ),
+          ),
+          IconButton(
+            icon: Icon(Icons.delete_outline, color: Colors.brown.shade600, size: 20),
+            onPressed: onDelete,
+            padding: const EdgeInsets.all(8.0),
+            constraints: const BoxConstraints(),
+          ),
+        ],
       ),
     );
   }
