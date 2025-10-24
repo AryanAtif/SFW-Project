@@ -149,20 +149,23 @@ class _MainScaffoldState extends State<MainScaffold> {
       CoursesPage
       (
         courses: courses,
-        addCourse: addCourse
+        addCourse: addCourse,
+        removeCourse: removeCourse
       ),
 
       WeeklyCalendarPage
       (
         reminders: reminders,
-        addReminder: addReminder
+        addReminder: addReminder,
+        removeReminder: removeReminder
       ),
       
       TasksDuePage
       (
         tasks: tasks, 
         addTask: addTask,
-        toggleTaskCompletion: toggleTaskCompletion
+        toggleTaskCompletion: toggleTaskCompletion,
+        removeTask: removeTask
       ),
 
       const Center(child: Text("AI Assistant Page (Future Feature)")), 
