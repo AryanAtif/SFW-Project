@@ -114,6 +114,12 @@ class _MainScaffoldState extends State<MainScaffold> {
       pinnedMessages.remove(message);
     });
   }
+
+  void insertPinnedMessageAt(int index, String message) {
+    setState(() {
+      pinnedMessages.insert(index, message);
+    });
+  }
   void removeCourse(Course course) {
     setState(() => courses.remove(course));
   }
