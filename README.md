@@ -1,3 +1,3 @@
-# gemini_code_2
+# Bedrock
 
-A new Flutter project.
+TODO: write all of it!
