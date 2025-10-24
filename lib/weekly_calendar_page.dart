@@ -200,7 +200,7 @@ class _WeeklyCalendarPageState extends State<WeeklyCalendarPage> {
   }
 }
 
-class _ReminderItem extends StatefulWidget {
+class _ReminderItem extends StatelessWidget {
   final Reminder reminder;
   final Function(Reminder) onRemove;
 
@@ -210,48 +210,36 @@ class _ReminderItem extends StatefulWidget {
   });
 
   @override
-  State<_ReminderItem> createState() => _ReminderItemState();
-}
-
-class _ReminderItemState extends State<_ReminderItem> {
-  bool _isHovered = false;
-
-  @override
   Widget build(BuildContext context) {
-    return MouseRegion(
-      onEnter: (_) => setState(() => _isHovered = true),
-      onExit: (_) => setState(() => _isHovered = false),
-      child: Padding(
-        padding: const EdgeInsets.only(bottom: 8.0),
-        child: Row(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Padding(
-              padding: const EdgeInsets.only(top: 8.0, right: 8.0),
-              child: Container(
-                width: 8, 
-                height: 8,
-                decoration: BoxDecoration(
-                  color: Colors.red, 
-                  borderRadius: BorderRadius.circular(4)
-                ),
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 8.0),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Padding(
+            padding: const EdgeInsets.only(top: 8.0, right: 8.0),
+            child: Container(
+              width: 8, 
+              height: 8,
+              decoration: BoxDecoration(
+                color: Colors.red, 
+                borderRadius: BorderRadius.circular(4)
               ),
             ),
-            Expanded(
-              child: Text(
-                '${widget.reminder.description} - ${DateFormat('h:mm a').format(widget.reminder.date)}',
-                style: Theme.of(context).textTheme.bodyMedium,
-              ),
+          ),
+          Expanded(
+            child: Text(
+              '${reminder.description} - ${DateFormat('h:mm a').format(reminder.date)}',
+              style: Theme.of(context).textTheme.bodyMedium,
             ),
-            if (_isHovered)
-              IconButton(
-                icon: Icon(Icons.delete_outline, color: Colors.brown.shade600, size: 20),
-                onPressed: () => widget.onRemove(widget.reminder),
-                padding: EdgeInsets.zero,
-                constraints: const BoxConstraints(),
-              ),
-          ],
-        ),
+          ),
+          IconButton(
+            icon: Icon(Icons.delete_outline, color: Colors.brown.shade600, size: 20),
+            onPressed: () => onRemove(reminder),
+            padding: const EdgeInsets.all(8.0),
+            constraints: const BoxConstraints(),
+          ),
+        ],
       ),
     );
   }
