@@ -5,12 +5,15 @@ class TasksDuePage extends StatelessWidget {
   final List<Task> tasks;
   final Function(Task) addTask;
   final Function(Task) toggleTaskCompletion;
+  final Function(Task) removeTask;
+  
 
   const TasksDuePage({
     super.key,
     required this.tasks,
     required this.addTask,
     required this.toggleTaskCompletion,
+    required this.removeTask,
   });
 
   @override
@@ -56,7 +59,35 @@ class TasksDuePage extends StatelessWidget {
       ),
     );
   }
-  
+
+Widget _buildTaskItem(BuildContext context, Task task, Function(Task) onToggle) {
+  return _TaskItem(
+    task: task,
+    onToggle: onToggle,
+    onRemove: (Task task) {
+      final removedTask = task;
+      final removedIndex = tasks.indexOf(task);
+      removeTask(task);
+      
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: const Text('Task removed.'),
+          action: SnackBarAction(
+            label: 'Undo',
+            onPressed: () {
+              tasks.insert(removedIndex, removedTask);
+              // Force rebuild
+              (context as Element).markNeedsBuild();
+            },
+          ),
+          duration: const Duration(seconds: 3),
+        )
+      );
+    },
+  );
+}
+
+/*  
   // Widget to display and allow checking off a task
   Widget _buildTaskItem(BuildContext context, Task task, Function(Task) onToggle) {
     return Padding(
@@ -85,7 +116,7 @@ class TasksDuePage extends StatelessWidget {
       ),
     );
   }
-
+*/
   // Widget for the 'Add Task' functionality
   Widget _buildAddButton(BuildContext context) {
     return TextButton(
@@ -151,6 +182,65 @@ class TasksDuePage extends StatelessWidget {
           },
         );
       },
+    );
+  }
+}
+
+class _TaskItem extends StatefulWidget {
+  final Task task;
+  final Function(Task) onToggle;
+  final Function(Task) onRemove;
+
+  const _TaskItem({
+    required this.task,
+    required this.onToggle,
+    required this.onRemove,
+  });
+
+  @override
+  State<_TaskItem> createState() => _TaskItemState();
+}
+
+class _TaskItemState extends State<_TaskItem> {
+  bool _isHovered = false;
+
+  @override
+  Widget build(BuildContext context) {
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 8.0),
+      child: MouseRegion(
+        onEnter: (_) => setState(() => _isHovered = true),
+        onExit: (_) => setState(() => _isHovered = false),
+        child: InkWell(
+          onTap: () => widget.onToggle(widget.task),
+          child: Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Icon(
+                widget.task.isCompleted ? Icons.check_circle_outline : Icons.circle_outlined,
+                color: Colors.brown.shade800,
+                size: 18,
+              ),
+              const SizedBox(width: 8),
+              Expanded(
+                child: Text(
+                  widget.task.description,
+                  style: Theme.of(context).textTheme.bodyMedium!.copyWith(
+                    decoration: widget.task.isCompleted ? TextDecoration.lineThrough : null,
+                  ),
+                ),
+              ),
+              if (_isHovered)
+                IconButton(
+                  icon: Icon(Icons.delete_outline, color: Colors.brown.shade600, size: 20),
+                  onPressed: () => widget.onRemove(widget.task),
+                  padding: EdgeInsets.zero,
+                  constraints: const BoxConstraints(),
+                ),
+            ],
+          ),
+        ),
+      ),
     );
   }
 }
