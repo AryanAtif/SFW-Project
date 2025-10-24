@@ -1,6 +1,5 @@
 import 'package:flutter/material.dart';
-import 'package:intl/intl.dart'; // Used for date formatting
-import 'package:flutter_dotenv/flutter_dotenv.dart'; 
+import 'package:intl/intl.dart';
 
 import 'data_models.dart';
 import 'home_page.dart';
@@ -9,15 +8,14 @@ import 'tasks_due_page.dart';
 import 'weekly_calendar_page.dart';
 import 'ai_assistant_page.dart';
 
-// NOTE: Add 'intl' and 'table_calendar' to your pubspec.yaml file
-// dependencies:
-//   flutter:
-//     sdk: flutter
-//   intl: ^0.19.0 
-//   table_calendar: ^3.0.9 
-
-
-void main() {
+void main() async {
+  WidgetsFlutterBinding.ensureInitialized();
+  
+  // Note: If you want to use .env file instead of hardcoded API key,
+  // uncomment the following lines and update ai_assistant_page.dart
+  // to use dotenv.env['GEMINI_API_KEY']
+  // await dotenv.load(fileName: ".env");
+  
   runApp(const StudentOrganizerApp());
 }
 
@@ -29,7 +27,6 @@ class StudentOrganizerApp extends StatelessWidget {
     return MaterialApp(
       title: 'Student Organizer',
       theme: ThemeData(
-        // Theming is kept the same
         primarySwatch: Colors.brown,
         scaffoldBackgroundColor: const Color(0xFFF7EBE5), 
         appBarTheme: const AppBarTheme(
@@ -92,7 +89,6 @@ class _MainScaffoldState extends State<MainScaffold> {
   void addTask(Task task) {
     setState(() {
       tasks.add(task);
-      // Also add to pinned messages for visibility on home screen
       pinnedMessages.insert(0, 'NEW TASK ADDED: ${task.description}');
     });
   }
@@ -104,13 +100,13 @@ class _MainScaffoldState extends State<MainScaffold> {
   void addReminder(Reminder reminder) {
     setState(() => reminders.add(reminder));
   }
-   // NEW: Method to add a new pinned message
+  
   void addPinnedMessage(String message) {
     setState(() {
-      pinnedMessages.insert(0, message); // Add to the top of the list
+      pinnedMessages.insert(0, message);
     });
   }
-    // NEW: Method to remove a pinned message
+  
   void removePinnedMessage(String message) {
     setState(() {
       pinnedMessages.remove(message);
@@ -122,6 +118,7 @@ class _MainScaffoldState extends State<MainScaffold> {
       pinnedMessages.insert(index, message);
     });
   }
+  
   void removeCourse(Course course) {
     setState(() => courses.remove(course));
   }
@@ -133,56 +130,45 @@ class _MainScaffoldState extends State<MainScaffold> {
   void removeReminder(Reminder reminder) {
     setState(() => reminders.remove(reminder));
   }
+  
   void _onItemTapped(int index) {
     setState(() {
       _selectedIndex = index;
     });
-    Navigator.pop(context); // Close the drawer after selection
+    Navigator.pop(context);
   }
- 
 
   @override
   Widget build(BuildContext context) {
-    // Pages now receive the state data and mutation callbacks
     final List<Widget> pages = <Widget>[
-      HomePage
-      (
+      HomePage(
         pinnedMessages: pinnedMessages,
         tasks: tasks, 
         addPinnedMessage: addPinnedMessage, 
         removePinnedMessage: removePinnedMessage,
         insertPinnedMessageAt: insertPinnedMessageAt
       ),
-
-
-      CoursesPage
-      (
+      CoursesPage(
         courses: courses,
         addCourse: addCourse,
         removeCourse: removeCourse
       ),
-
-      WeeklyCalendarPage
-      (
+      WeeklyCalendarPage(
         reminders: reminders,
         addReminder: addReminder,
         removeReminder: removeReminder
       ),
-      
-      TasksDuePage
-      (
+      TasksDuePage(
         tasks: tasks, 
         addTask: addTask,
         toggleTaskCompletion: toggleTaskCompletion,
         removeTask: removeTask
       ),
-
-        const AIAssistantPage()    
+      const AIAssistantPage()    
     ];
 
     return Scaffold(
       appBar: AppBar(
-        // ... (AppBar content remains the same)
         title: Text(
           ['Home', 'Courses', 'Weekly Calendar', 'Tasks Due', 'AI Assistant'][_selectedIndex],
           style: Theme.of(context).textTheme.titleLarge,
@@ -207,7 +193,6 @@ class _MainScaffoldState extends State<MainScaffold> {
         child: ListView(
           padding: EdgeInsets.zero,
           children: <Widget>[
-            // Removed 'Blur' title and note text
             const DrawerHeader(
               decoration: BoxDecoration(color: Color(0xFFD6B59D)),
               child: Text(''), 
@@ -220,11 +205,10 @@ class _MainScaffoldState extends State<MainScaffold> {
           ],
         ),
       ),
-      body: pages[_selectedIndex], // Use the updated pages list
+      body: pages[_selectedIndex],
     );
   }
 
-  // Helper function to build the interactive Drawer items (unchanged)
   Widget _buildDrawerItem({required String title, required int index, required BuildContext context}) {
     final isActive = _selectedIndex == index;
     final buttonColor = isActive ? const Color(0xFFD6B59D) : const Color(0xFFA2846A); 

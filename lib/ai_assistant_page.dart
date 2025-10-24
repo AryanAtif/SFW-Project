@@ -1,6 +1,5 @@
 import 'package:flutter/material.dart';
 import 'package:google_generative_ai/google_generative_ai.dart';
-import 'package:flutter_dotenv/flutter_dotenv.dart'; // If using .env
 
 class AIAssistantPage extends StatefulWidget {
   const AIAssistantPage({super.key});
@@ -14,8 +13,9 @@ class _AIAssistantPageState extends State<AIAssistantPage> {
   final ScrollController _scrollController = ScrollController();
   final List<ChatMessage> _messages = [];
   bool _isLoading = false;
-  late GenerativeModel _model;
-  late ChatSession _chat;
+  GenerativeModel? _model;
+  ChatSession? _chat;
+  String? _initError;
 
   @override
   void initState() {
@@ -24,31 +24,47 @@ class _AIAssistantPageState extends State<AIAssistantPage> {
   }
 
   void _initializeChat() {
-    // Option A: Load from .env file
-    final apiKey = dotenv.env['GEMINI_API_KEY'] ?? '';
-    
-    // Option B: Hardcode (replace with your actual key for testing)
-    // final apiKey = 'YOUR_API_KEY_HERE';
+    try {
+      // Using the API key from your gemini_api_key.env file
+      const apiKey = 'AIzaSyDCMJzHFr7t2C0jyFCV6EO6Q30sPr3-C9o';
+      
+      if (apiKey.isEmpty) {
+        setState(() {
+          _initError = 'API key not found. Please add your Gemini API key.';
+        });
+        return;
+      }
 
-    _model = GenerativeModel(
-      model: 'gemini-pro',
-      apiKey: apiKey,
-      generationConfig: GenerationConfig(
-        temperature: 0.7,
-        topK: 40,
-        topP: 0.95,
-        maxOutputTokens: 1024,
-      ),
-    );
+      _model = GenerativeModel(
+        model: 'gemini-pro',
+        apiKey: apiKey,
+        generationConfig: GenerationConfig(
+          temperature: 0.7,
+          topK: 40,
+          topP: 0.95,
+          maxOutputTokens: 1024,
+        ),
+      );
 
-    _chat = _model.startChat(history: []);
+      _chat = _model!.startChat(history: []);
+      
+      setState(() {
+        _initError = null;
+      });
+    } catch (e) {
+      setState(() {
+        _initError = 'Failed to initialize AI: ${e.toString()}';
+      });
+    }
   }
 
   Future<void> _sendMessage(String text) async {
-    if (text.trim().isEmpty) return;
+    if (text.trim().isEmpty || _chat == null) return;
 
+    final userMessage = text.trim();
+    
     setState(() {
-      _messages.add(ChatMessage(text: text, isUser: true));
+      _messages.add(ChatMessage(text: userMessage, isUser: true));
       _isLoading = true;
     });
 
@@ -56,7 +72,7 @@ class _AIAssistantPageState extends State<AIAssistantPage> {
     _scrollToBottom();
 
     try {
-      final response = await _chat.sendMessage(Content.text(text));
+      final response = await _chat!.sendMessage(Content.text(userMessage));
       final responseText = response.text ?? 'Sorry, I could not generate a response.';
 
       setState(() {
@@ -66,7 +82,7 @@ class _AIAssistantPageState extends State<AIAssistantPage> {
     } catch (e) {
       setState(() {
         _messages.add(ChatMessage(
-          text: 'Error: ${e.toString()}',
+          text: 'Error: Failed to get response. Please try again.\n\nDetails: ${e.toString()}',
           isUser: false,
           isError: true,
         ));
@@ -91,6 +107,51 @@ class _AIAssistantPageState extends State<AIAssistantPage> {
 
   @override
   Widget build(BuildContext context) {
+    // Show error if initialization failed
+    if (_initError != null) {
+      return Center(
+        child: Padding(
+          padding: const EdgeInsets.all(20.0),
+          child: Column(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              Icon(
+                Icons.error_outline,
+                size: 80,
+                color: Colors.red.shade300,
+              ),
+              const SizedBox(height: 20),
+              Text(
+                'Failed to Initialize AI',
+                style: Theme.of(context).textTheme.titleLarge,
+                textAlign: TextAlign.center,
+              ),
+              const SizedBox(height: 10),
+              Text(
+                _initError!,
+                style: Theme.of(context).textTheme.bodyMedium,
+                textAlign: TextAlign.center,
+              ),
+              const SizedBox(height: 20),
+              ElevatedButton(
+                onPressed: () {
+                  setState(() {
+                    _initError = null;
+                  });
+                  _initializeChat();
+                },
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: Colors.brown.shade600,
+                  foregroundColor: Colors.white,
+                ),
+                child: const Text('Retry'),
+              ),
+            ],
+          ),
+        ),
+      );
+    }
+
     return Column(
       children: [
         Expanded(
@@ -114,6 +175,29 @@ class _AIAssistantPageState extends State<AIAssistantPage> {
                         'I can help you with your studies,\ntasks, and more.',
                         textAlign: TextAlign.center,
                         style: Theme.of(context).textTheme.bodyMedium,
+                      ),
+                      const SizedBox(height: 30),
+                      Padding(
+                        padding: const EdgeInsets.symmetric(horizontal: 40.0),
+                        child: Wrap(
+                          spacing: 8,
+                          runSpacing: 8,
+                          alignment: WrapAlignment.center,
+                          children: [
+                            _SuggestionChip(
+                              label: 'Explain a concept',
+                              onTap: () => _sendMessage('Can you explain quantum mechanics in simple terms?'),
+                            ),
+                            _SuggestionChip(
+                              label: 'Help with homework',
+                              onTap: () => _sendMessage('Can you help me solve a math problem?'),
+                            ),
+                            _SuggestionChip(
+                              label: 'Study tips',
+                              onTap: () => _sendMessage('What are some effective study techniques?'),
+                            ),
+                          ],
+                        ),
                       ),
                     ],
                   ),
@@ -211,9 +295,9 @@ class _AIAssistantPageState extends State<AIAssistantPage> {
                     : () => _sendMessage(_textController.text),
                 child: Container(
                   padding: const EdgeInsets.all(12.0),
-                  child: const Icon(
+                  child: Icon(
                     Icons.send,
-                    color: Colors.white,
+                    color: _isLoading ? Colors.white.withOpacity(0.5) : Colors.white,
                     size: 24,
                   ),
                 ),
@@ -244,6 +328,27 @@ class ChatMessage {
     required this.isUser,
     this.isError = false,
   });
+}
+
+// Suggestion chip widget
+class _SuggestionChip extends StatelessWidget {
+  final String label;
+  final VoidCallback onTap;
+
+  const _SuggestionChip({
+    required this.label,
+    required this.onTap,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return ActionChip(
+      label: Text(label),
+      onPressed: onTap,
+      backgroundColor: Colors.brown.shade100,
+      labelStyle: TextStyle(color: Colors.brown.shade800),
+    );
+  }
 }
 
 // Chat bubble widget
