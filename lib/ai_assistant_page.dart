@@ -16,21 +16,53 @@ class _AIAssistantPageState extends State<AIAssistantPage> {
   GenerativeModel? _model;
   ChatSession? _chat;
   String? _initError;
+  
+  static const _maxMessageLength = 1000; // Reasonable limit for message length
+  static const _maxStoredMessages = 50; // Limit stored messages to prevent memory issues
 
   @override
   void initState() {
     super.initState();
+    _loadMessages();
     _initializeChat();
+  }
+
+  Future<void> _loadMessages() async {
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      final messagesJson = prefs.getStringList('chat_messages') ?? [];
+      
+      setState(() {
+        _messages.addAll(
+          messagesJson.map((json) => ChatMessage.fromJson(jsonDecode(json))),
+        );
+      });
+    } catch (e) {
+      print('Error loading messages: $e');
+    }
+  }
+
+  Future<void> _saveMessages() async {
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      final messagesJson = _messages
+          .map((msg) => jsonEncode(msg.toJson()))
+          .toList();
+      await prefs.setStringList('chat_messages', messagesJson);
+    } catch (e) {
+      print('Error saving messages: $e');
+    }
   }
 
   void _initializeChat() {
     try {
-      // Using the API key from your gemini_api_key.env file
-      const apiKey = 'AIzaSyDCMJzHFr7t2C0jyFCV6EO6Q30sPr3-C9o';
+      // Load API key from environment file
+      final apiKey = const String.fromEnvironment('GEMINI_API_KEY', 
+          defaultValue: ''); // For development, can be overridden with --dart-define
       
       if (apiKey.isEmpty) {
         setState(() {
-          _initError = 'API key not found. Please add your Gemini API key.';
+          _initError = 'API key not found. Please add your Gemini API key to environment variables.';
         });
         return;
       }
@@ -60,8 +92,23 @@ class _AIAssistantPageState extends State<AIAssistantPage> {
 
   Future<void> _sendMessage(String text) async {
     if (text.trim().isEmpty || _chat == null) return;
+    if (text.length > _maxMessageLength) {
+      setState(() {
+        _messages.add(ChatMessage(
+          text: 'Message too long. Please limit to $_maxMessageLength characters.',
+          isUser: false,
+          isError: true,
+        ));
+      });
+      return;
+    }
 
     final userMessage = text.trim();
+    
+    // Maintain message history limit
+    if (_messages.length >= _maxStoredMessages) {
+      _messages.removeRange(0, 2); // Remove oldest Q&A pair
+    }
     
     setState(() {
       _messages.add(ChatMessage(text: userMessage, isUser: true));
@@ -79,6 +126,8 @@ class _AIAssistantPageState extends State<AIAssistantPage> {
         _messages.add(ChatMessage(text: responseText, isUser: false));
         _isLoading = false;
       });
+      
+      await _saveMessages(); // Save after receiving response
     } catch (e) {
       setState(() {
         _messages.add(ChatMessage(
@@ -322,12 +371,30 @@ class ChatMessage {
   final String text;
   final bool isUser;
   final bool isError;
+  final DateTime timestamp;
 
   ChatMessage({
     required this.text,
     required this.isUser,
     this.isError = false,
-  });
+    DateTime? timestamp,
+  }) : timestamp = timestamp ?? DateTime.now();
+
+  // Convert message to JSON
+  Map<String, dynamic> toJson() => {
+    'text': text,
+    'isUser': isUser,
+    'isError': isError,
+    'timestamp': timestamp.toIso8601String(),
+  };
+
+  // Create message from JSON
+  factory ChatMessage.fromJson(Map<String, dynamic> json) => ChatMessage(
+    text: json['text'] as String,
+    isUser: json['isUser'] as bool,
+    isError: json['isError'] as bool,
+    timestamp: DateTime.parse(json['timestamp'] as String),
+  );
 }
 
 // Suggestion chip widget
