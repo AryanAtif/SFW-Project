@@ -208,7 +208,7 @@ class _MainScaffoldState extends State<MainScaffold> {
             _buildDrawerItem(title: 'Weekly Calendar', index: 2, context: context),
             _buildDrawerItem(title: 'Tasks Due', index: 3, context: context),
             _buildDrawerItem(title: 'AI Assistant', index: 4, context: context),
-            _buildDrawerItem(title: 'Gemini Chat', index: 5, context: context),
+            // _buildDrawerItem(title: 'Gemini Chat', index: 5, context: context),
           ],
         ),
       ),
