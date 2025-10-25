@@ -36,7 +36,7 @@ class _GeminiChatPageState extends State<GeminiChatPage> {
       }
 
       _model = GenerativeModel(
-        model: 'gemini-pro',
+        model: 'gemini-1.5-pro-002',
         apiKey: apiKey,
         generationConfig: GenerationConfig(
           temperature: 0.7,
@@ -52,7 +52,7 @@ class _GeminiChatPageState extends State<GeminiChatPage> {
       });
     } catch (e) {
       setState(() {
-        _error = 'Failed to initialize chat: \${e.toString()}';
+        _error = 'Failed to initialize chat: ${e.toString()}';
       });
     }
   }
@@ -80,7 +80,7 @@ class _GeminiChatPageState extends State<GeminiChatPage> {
     } catch (e) {
       setState(() {
         _messages.add(ChatMessage(
-          text: 'Error: \${e.toString()}',
+          text: 'Error: ${e.toString()}',
           isUser: false,
           isError: true,
         ));

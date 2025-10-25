@@ -11,11 +11,6 @@ import 'gemini_chat_page.dart';
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
   
-  // Note: If you want to use .env file instead of hardcoded API key,
-  // uncomment the following lines and update ai_assistant_page.dart
-  // to use dotenv.env['GEMINI_API_KEY']
-  // await dotenv.load(fileName: ".env");
-  
   runApp(const StudentOrganizerApp());
 }
 
