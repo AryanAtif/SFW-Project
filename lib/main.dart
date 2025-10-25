@@ -1,5 +1,4 @@
 import 'package:flutter/material.dart';
-import 'package:intl/intl.dart';
 
 import 'data_models.dart';
 import 'home_page.dart';
@@ -7,6 +6,7 @@ import 'courses_page.dart';
 import 'tasks_due_page.dart';
 import 'weekly_calendar_page.dart';
 import 'ai_assistant_page.dart';
+import 'gemini_chat_page.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -164,13 +164,14 @@ class _MainScaffoldState extends State<MainScaffold> {
         toggleTaskCompletion: toggleTaskCompletion,
         removeTask: removeTask
       ),
-      const AIAssistantPage()    
+      const AIAssistantPage(),
+      const GeminiChatPage()    
     ];
 
     return Scaffold(
       appBar: AppBar(
         title: Text(
-          ['Home', 'Courses', 'Weekly Calendar', 'Tasks Due', 'AI Assistant'][_selectedIndex],
+          ['Home', 'Courses', 'Weekly Calendar', 'Tasks Due', 'AI Assistant', 'Gemini Chat'][_selectedIndex],
           style: Theme.of(context).textTheme.titleLarge,
         ),
         leading: Builder(
@@ -202,6 +203,7 @@ class _MainScaffoldState extends State<MainScaffold> {
             _buildDrawerItem(title: 'Weekly Calendar', index: 2, context: context),
             _buildDrawerItem(title: 'Tasks Due', index: 3, context: context),
             _buildDrawerItem(title: 'AI Assistant', index: 4, context: context),
+            _buildDrawerItem(title: 'Gemini Chat', index: 5, context: context),
           ],
         ),
       ),
