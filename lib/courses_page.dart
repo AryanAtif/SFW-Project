@@ -68,26 +68,44 @@ class CoursesPage extends StatelessWidget {
   // Dialog to capture new course details
   void _showAddCourseDialog(BuildContext context) {
     String title = '';
-    int creditHours = 3; // Default value
+    int creditHours = 3;
+    String instructor = '';
+    String description = '';
+    String schedule = '';
 
     showDialog(
       context: context,
       builder: (context) {
         return AlertDialog(
           title: const Text('Add New Course'),
-          content: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              TextField(
-                onChanged: (value) => title = value,
-                decoration: const InputDecoration(labelText: 'Course Title'),
-              ),
-              TextField(
-                onChanged: (value) => creditHours = int.tryParse(value) ?? 3,
-                keyboardType: TextInputType.number,
-                decoration: const InputDecoration(labelText: 'Credit Hours (e.g., 3)'),
-              ),
-            ],
+          content: SingleChildScrollView(
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                TextField(
+                  onChanged: (value) => title = value,
+                  decoration: const InputDecoration(labelText: 'Course Title'),
+                ),
+                TextField(
+                  onChanged: (value) => creditHours = int.tryParse(value) ?? 3,
+                  keyboardType: TextInputType.number,
+                  decoration: const InputDecoration(labelText: 'Credit Hours (e.g., 3)'),
+                ),
+                TextField(
+                  onChanged: (value) => instructor = value,
+                  decoration: const InputDecoration(labelText: 'Instructor'),
+                ),
+                TextField(
+                  onChanged: (value) => schedule = value,
+                  decoration: const InputDecoration(labelText: 'Schedule'),
+                ),
+                TextField(
+                  onChanged: (value) => description = value,
+                  decoration: const InputDecoration(labelText: 'Description'),
+                  maxLines: 3,
+                ),
+              ],
+            ),
           ),
           actions: [
             TextButton(
@@ -97,7 +115,13 @@ class CoursesPage extends StatelessWidget {
             TextButton(
               onPressed: () {
                 if (title.isNotEmpty) {
-                  addCourse(Course(title, creditHours));
+                  addCourse(Course(
+                    title, 
+                    creditHours,
+                    instructor: instructor,
+                    description: description,
+                    schedule: schedule,
+                  ));
                   Navigator.pop(context);
                 }
               },
@@ -129,11 +153,7 @@ class _CourseButton extends StatelessWidget {
         color: const Color(0xFFA2846A), 
         borderRadius: BorderRadius.circular(5.0),
         child: InkWell(
-          onTap: () {
-            ScaffoldMessenger.of(context).showSnackBar(
-              SnackBar(content: Text('Tapped on ${course.title} (Detail Page)'))
-            );
-          },
+          onTap: () => _showCourseDetailsDialog(context),
           child: Container(
             padding: const EdgeInsets.all(20.0),
             child: Row(
@@ -165,6 +185,85 @@ class _CourseButton extends StatelessWidget {
         ),
       ),
     );
+  }
+
+  void _showCourseDetailsDialog(BuildContext context) {
+    final titleController = TextEditingController(text: course.title);
+    final creditHoursController = TextEditingController(text: course.creditHours.toString());
+    final instructorController = TextEditingController(text: course.instructor);
+    final descriptionController = TextEditingController(text: course.description);
+    final scheduleController = TextEditingController(text: course.schedule);
+
+    showDialog(
+      context: context,
+      builder: (context) {
+        return AlertDialog(
+          title: Text('Course Details: ${course.title}'),
+          content: SingleChildScrollView(
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                TextField(
+                  controller: titleController,
+                  decoration: const InputDecoration(labelText: 'Course Title'),
+                  onChanged: (value) => course.title = value,
+                ),
+                TextField(
+                  controller: creditHoursController,
+                  decoration: const InputDecoration(labelText: 'Credit Hours'),
+                  keyboardType: TextInputType.number,
+                  onChanged: (value) => course.creditHours = int.tryParse(value) ?? course.creditHours,
+                ),
+                TextField(
+                  controller: instructorController,
+                  decoration: const InputDecoration(labelText: 'Instructor'),
+                  onChanged: (value) => course.instructor = value,
+                ),
+                TextField(
+                  controller: scheduleController,
+                  decoration: const InputDecoration(labelText: 'Schedule'),
+                  onChanged: (value) => course.schedule = value,
+                ),
+                TextField(
+                  controller: descriptionController,
+                  decoration: const InputDecoration(labelText: 'Description'),
+                  maxLines: 3,
+                  onChanged: (value) => course.description = value,
+                ),
+                const SizedBox(height: 20),
+                ElevatedButton.icon(
+                  onPressed: () {
+                    ScaffoldMessenger.of(context).showSnackBar(
+                      const SnackBar(content: Text('Document upload feature coming soon!')),
+                    );
+                  },
+                  icon: const Icon(Icons.upload_file),
+                  label: const Text('Upload Documents'),
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: Colors.brown[600],
+                    foregroundColor: Colors.white,
+                  ),
+                ),
+              ],
+            ),
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(context),
+              child: const Text('Close'),
+            ),
+          ],
+        );
+      },
+    ).then((_) {
+      // Dispose controllers after dialog is closed
+      titleController.dispose();
+      creditHoursController.dispose();
+      instructorController.dispose();
+      descriptionController.dispose();
+      scheduleController.dispose();
+    });
   }
 
   void _showDeleteConfirmation(BuildContext context) {

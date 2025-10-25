@@ -1,9 +1,18 @@
 // The data models are kept here, separate from the UI.
 class Course {
-  final String title;
-  final int creditHours;
+  String title;
+  int creditHours;
+  String instructor;
+  String description;
+  String schedule;
 
-  Course(this.title, this.creditHours);
+  Course(
+    this.title, 
+    this.creditHours, {
+    this.instructor = '',
+    this.description = '',
+    this.schedule = '',
+  });
 }
 
 class Task {

@@ -52,10 +52,22 @@ class _MainScaffoldState extends State<MainScaffold> {
   
   // --- STATE DATA ---
   List<Course> courses = [
-    Course('Differential Equations', 3),
-    Course('Software Engineering', 2),
-    Course('Object-Oriented Programming', 4),
-    Course('Digital Logic Design', 4),
+    Course('Differential Equations', 3,
+      instructor: 'Sir. Muhammad Irfan',
+      description: 'Study of differential equations and their applications in engineering',
+      schedule: 'Mon, Wed 10:00 AM - 11:30 AM'),
+    Course('Software Engineering', 2,
+      instructor: 'Dr. Mahmood Qureshi',
+      description: 'Principles and practices of software development and project management',
+      schedule: 'Tue, Thu 2:00 PM - 3:30 PM'),
+    Course('Object-Oriented Programming', 4,
+      instructor: 'Dr. Syed Abdul Mannan Kirmani',
+      description: 'Advanced programming concepts using object-oriented methodology',
+      schedule: 'Mon, Wed, Fri 1:00 PM - 2:30 PM'),
+    Course('Digital Logic Design', 4,
+      instructor: 'Dr. Babar Mansoor',
+      description: 'Design and analysis of digital circuits and systems',
+      schedule: 'Tue, Thu 9:00 AM - 10:30 AM'),
   ];
 
   List<Task> tasks = [
