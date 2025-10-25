@@ -1,4 +1,4 @@
-# AI Agent Instructions for SFW-Project
+# uhh AI Agent Instructions for SFW-Project
 
 ## Project Overview
 This is a Flutter-based Student Organization Application that helps students manage their courses, tasks, calendar, and includes an AI assistant feature. The app is designed with a modern Material Design 3 aesthetic using a brown-themed color scheme.
