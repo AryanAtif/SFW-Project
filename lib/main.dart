@@ -163,9 +163,19 @@ class _MainScaffoldState extends State<MainScaffold> {
       const GeminiChatPage()    
     ];
 
-    return Scaffold(
-      appBar: AppBar(
-        title: Text(
+    return WillPopScope(
+      onWillPop: () async {
+        if (_selectedIndex != 0) {
+          setState(() {
+            _selectedIndex = 0;
+          });
+          return false;
+        }
+        return true;
+      },
+      child: Scaffold(
+        appBar: AppBar(
+          title: Text(
           ['Home', 'Courses', 'Weekly Calendar', 'Tasks Due', 'AI Assistant', 'Gemini Chat'][_selectedIndex],
           style: Theme.of(context).textTheme.titleLarge,
         ),
@@ -203,6 +213,7 @@ class _MainScaffoldState extends State<MainScaffold> {
         ),
       ),
       body: pages[_selectedIndex],
+    ),
     );
   }
 

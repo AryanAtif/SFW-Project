@@ -36,7 +36,7 @@ class _GeminiChatPageState extends State<GeminiChatPage> {
       }
 
       _model = GenerativeModel(
-        model: 'gemini-1.5-pro-002',
+        model: 'gemini-1.5-flash',
         apiKey: apiKey,
         generationConfig: GenerationConfig(
           temperature: 0.7,

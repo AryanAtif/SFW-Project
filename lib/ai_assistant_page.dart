@@ -60,7 +60,7 @@ class _AIAssistantPageState extends State<AIAssistantPage> {
     try {
       // Load API key from environment file
       final apiKey = const String.fromEnvironment('GEMINI_API_KEY', 
-          defaultValue: ''); // For development, can be overridden with --dart-define
+          defaultValue: 'AIzaSyDCMJzHFr7t2C0jyFCV6EO6Q30sPr3-C9o'); // For development, can be overridden with --dart-define
       
       if (apiKey.isEmpty) {
         setState(() {
@@ -70,7 +70,7 @@ class _AIAssistantPageState extends State<AIAssistantPage> {
       }
 
       _model = GenerativeModel(
-        model: 'gemini-pro',
+        model: 'gemini-2.0-flash-exp',
         apiKey: apiKey,
         generationConfig: GenerationConfig(
           temperature: 0.7,
