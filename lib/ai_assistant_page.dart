@@ -1,7 +1,5 @@
 import 'package:flutter/material.dart';
 import 'package:google_generative_ai/google_generative_ai.dart';
-import 'package:shared_preferences/shared_preferences.dart';
-import 'dart:convert';
 
 class AIAssistantPage extends StatefulWidget {
   const AIAssistantPage({super.key});
@@ -25,35 +23,7 @@ class _AIAssistantPageState extends State<AIAssistantPage> {
   @override
   void initState() {
     super.initState();
-    _loadMessages();
     _initializeChat();
-  }
-
-  Future<void> _loadMessages() async {
-    try {
-      final prefs = await SharedPreferences.getInstance();
-      final messagesJson = prefs.getStringList('chat_messages') ?? [];
-      
-      setState(() {
-        _messages.addAll(
-          messagesJson.map((json) => ChatMessage.fromJson(jsonDecode(json))),
-        );
-      });
-    } catch (e) {
-      print('Error loading messages: $e');
-    }
-  }
-
-  Future<void> _saveMessages() async {
-    try {
-      final prefs = await SharedPreferences.getInstance();
-      final messagesJson = _messages
-          .map((msg) => jsonEncode(msg.toJson()))
-          .toList();
-      await prefs.setStringList('chat_messages', messagesJson);
-    } catch (e) {
-      print('Error saving messages: $e');
-    }
   }
 
   void _initializeChat() {
@@ -128,8 +98,6 @@ class _AIAssistantPageState extends State<AIAssistantPage> {
         _messages.add(ChatMessage(text: responseText, isUser: false));
         _isLoading = false;
       });
-      
-      await _saveMessages(); // Save after receiving response
     } catch (e) {
       setState(() {
         _messages.add(ChatMessage(
@@ -373,30 +341,12 @@ class ChatMessage {
   final String text;
   final bool isUser;
   final bool isError;
-  final DateTime timestamp;
 
   ChatMessage({
     required this.text,
     required this.isUser,
     this.isError = false,
-    DateTime? timestamp,
-  }) : timestamp = timestamp ?? DateTime.now();
-
-  // Convert message to JSON
-  Map<String, dynamic> toJson() => {
-    'text': text,
-    'isUser': isUser,
-    'isError': isError,
-    'timestamp': timestamp.toIso8601String(),
-  };
-
-  // Create message from JSON
-  factory ChatMessage.fromJson(Map<String, dynamic> json) => ChatMessage(
-    text: json['text'] as String,
-    isUser: json['isUser'] as bool,
-    isError: json['isError'] as bool,
-    timestamp: DateTime.parse(json['timestamp'] as String),
-  );
+  });
 }
 
 // Suggestion chip widget
