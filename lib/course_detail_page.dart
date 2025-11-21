@@ -1,4 +1,4 @@
-import 'dart:io';
+import 'package:flutter/services.dart';
 
 import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:flutter/material.dart';
@@ -455,9 +455,12 @@ class _CourseDetailPageState extends State<CourseDetailPage> {
           final bytes = await picked.readAsBytes();
           uploadTask = ref.putData(bytes);
         } else {
-          final path = picked.path;
-          final file = File(path);
-          uploadTask = ref.putFile(file);
+          // Some platforms (Android Scoped Storage) return content URIs without
+          // a direct file path. Use readAsBytes() which works across platforms
+          // and avoids permission/path issues that can lead to platform channel
+          // errors.
+          final bytes = await picked.readAsBytes();
+          uploadTask = ref.putData(bytes);
         }
 
         // register task and listen to progress
@@ -477,22 +480,23 @@ class _CourseDetailPageState extends State<CourseDetailPage> {
           });
         });
 
-        final snapshot = await uploadTask.whenComplete(() {});
-        final downloadUrl = await snapshot.ref.getDownloadURL();
+  final snapshot = await uploadTask.whenComplete(() {});
+  final downloadUrl = await snapshot.ref.getDownloadURL();
 
-        // persist metadata in course
-        final uploaderId = FirebaseAuth.instance.currentUser?.uid ?? 'unknown';
-        final doc = CourseDocument(name: filename, url: downloadUrl, uploadedBy: uploaderId);
-        widget.course.documents.add(doc);
-        widget.onUpdate(widget.course);
+  // persist metadata in course
+  final uploaderId = FirebaseAuth.instance.currentUser?.uid ?? 'unknown';
+  final doc = CourseDocument(name: filename, url: downloadUrl, uploadedBy: uploaderId);
+  widget.course.documents.add(doc);
+  widget.onUpdate(widget.course);
 
-        // cleanup
-        _fileTasks.remove(filename);
-        _fileProgress.remove(filename);
-        _pickedFiles.remove(filename);
+  // cleanup
+  _fileTasks.remove(filename);
+  _fileProgress.remove(filename);
+  _pickedFiles.remove(filename);
 
-        uploaded++;
-        ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Uploaded $filename')));
+  uploaded++;
+  if (!mounted) return;
+  ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Uploaded $filename')));
       }
 
       setState(() { _isUploading = false; _progress = 0.0; });
@@ -527,6 +531,7 @@ class _CourseDetailPageState extends State<CourseDetailPage> {
   Future<void> _retryUpload(String name) async {
     final picked = _pickedFiles[name];
     if (picked == null) {
+      if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('No file available to retry.')));
       return;
     }
@@ -537,21 +542,19 @@ class _CourseDetailPageState extends State<CourseDetailPage> {
     final ref = FirebaseStorage.instance.ref().child('courses/$safeCourseId/$name');
     UploadTask uploadTask;
     try {
-      if (kIsWeb) {
-        final bytes = await picked.readAsBytes();
-        uploadTask = ref.putData(bytes);
-      } else {
-  final file = File(picked.path);
-        uploadTask = ref.putFile(file);
-      }
+      // Use bytes for retry as well to avoid path issues
+      final bytes = await picked.readAsBytes();
+      uploadTask = ref.putData(bytes);
 
       _fileTasks[name] = uploadTask;
       uploadTask.snapshotEvents.listen((event) {
         final total = event.totalBytes > 0 ? event.totalBytes : 1;
+        if (!mounted) return;
         setState(() {
           _fileProgress[name] = event.bytesTransferred / total;
         });
       }, onError: (e) {
+        if (!mounted) return;
         setState(() {
           _fileErrors[name] = e.toString();
           _fileTasks[name] = null;
@@ -568,10 +571,17 @@ class _CourseDetailPageState extends State<CourseDetailPage> {
       _fileTasks.remove(name);
       _fileProgress.remove(name);
       _pickedFiles.remove(name);
+      if (!mounted) return;
       setState(() { _isUploading = false; });
       ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Uploaded $name')));
+    } on PlatformException catch (pe) {
+      if (!mounted) return;
+      setState(() { _fileErrors[name] = pe.message; _isUploading = false; _fileTasks[name] = null; });
+      ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Upload failed: ${pe.message}')));
     } catch (e) {
+      if (!mounted) return;
       setState(() { _fileErrors[name] = e.toString(); _isUploading = false; _fileTasks[name] = null; });
+      ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Upload failed: $e')));
     }
   }
 }
