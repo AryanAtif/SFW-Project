@@ -1,6 +1,9 @@
 import 'package:flutter/material.dart';
+import 'package:firebase_core/firebase_core.dart';
+import 'package:firebase_auth/firebase_auth.dart';
 
 import 'data_models.dart';
+import 'firebase_options.dart';
 import 'home_page.dart';
 import 'courses_page.dart';
 import 'tasks_due_page.dart';
@@ -10,7 +13,15 @@ import 'gemini_chat_page.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
-  
+  await Firebase.initializeApp(
+    options: DefaultFirebaseOptions.currentPlatform,
+  );
+  // Sign in anonymously so uploads are associated with a user id.
+  try {
+    await FirebaseAuth.instance.signInAnonymously();
+  } catch (e) {
+    // Ignore sign-in errors for now; uploads will still proceed but without uid
+  }
   runApp(const StudentOrganizerApp());
 }
 

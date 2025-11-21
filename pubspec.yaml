@@ -13,6 +13,10 @@ dependencies:
   google_generative_ai: ^0.4.0
   flutter_dotenv: ^5.1.0  # For API key management (optional but recommended)
   shared_preferences: ^2.2.0  # For persisting chat messages
+  firebase_storage: ^11.0.7
+  file_selector: ^1.0.4
+  firebase_auth: ^4.6.7
+  url_launcher: ^6.1.10
 
 dev_dependencies:
   flutter_test:

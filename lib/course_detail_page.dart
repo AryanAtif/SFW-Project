@@ -1,5 +1,27 @@
+import 'dart:io';
+
+import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:flutter/material.dart';
+import 'package:firebase_storage/firebase_storage.dart';
+import 'package:file_selector/file_selector.dart';
+import 'package:firebase_auth/firebase_auth.dart';
+import 'package:url_launcher/url_launcher.dart';
+
 import 'data_models.dart';
+
+enum _UploadStatus { pending, uploading, done, error, cancelled }
+
+class _UploadItem {
+  final String name;
+  final XFile file;
+  UploadTask? task;
+  double progress = 0.0;
+  _UploadStatus status = _UploadStatus.pending;
+  String? error;
+  String? downloadUrl;
+
+  _UploadItem({required this.name, required this.file});
+}
 
 class CourseDetailPage extends StatefulWidget {
   final Course course;
@@ -304,11 +326,7 @@ class _CourseDetailPageState extends State<CourseDetailPage> {
             const SizedBox(height: 16),
             Center(
               child: ElevatedButton.icon(
-                onPressed: () {
-                  ScaffoldMessenger.of(context).showSnackBar(
-                    const SnackBar(content: Text('Document upload feature coming soon!')),
-                  );
-                },
+                onPressed: _pickAndUploadFiles,
                 icon: const Icon(Icons.upload_file),
                 label: const Text('Upload Documents'),
                 style: ElevatedButton.styleFrom(
@@ -317,11 +335,244 @@ class _CourseDetailPageState extends State<CourseDetailPage> {
                 ),
               ),
             ),
+            const SizedBox(height: 12),
+            // Upload progress
+            Builder(builder: (context) {
+              if (_isUploading) {
+                return Column(
+                  children: [
+                    LinearProgressIndicator(value: _progress),
+                    const SizedBox(height: 8),
+                    Text('${(_progress * 100).toStringAsFixed(0)}% uploaded', style: theme.textTheme.bodyMedium),
+                  ],
+                );
+              }
+              return const SizedBox.shrink();
+            }),
+            const SizedBox(height: 12),
+            // In-progress uploads (per-file)
+            if (_fileProgress.isNotEmpty || _fileErrors.isNotEmpty) ...[
+              Card(
+                child: Padding(
+                  padding: const EdgeInsets.all(8.0),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text('Uploading', style: theme.textTheme.titleMedium),
+                      const SizedBox(height: 8),
+                      ..._pickedFiles.keys.map((name) {
+                        final progress = _fileProgress[name] ?? 0.0;
+                        final error = _fileErrors[name];
+                        final isUploading = _fileTasks[name] != null;
+                        return Padding(
+                          padding: const EdgeInsets.symmetric(vertical: 6.0),
+                          child: Row(
+                            children: [
+                              Expanded(
+                                child: Column(
+                                  crossAxisAlignment: CrossAxisAlignment.start,
+                                  children: [
+                                    Text(name),
+                                    const SizedBox(height: 6),
+                                    LinearProgressIndicator(value: progress),
+                                    if (error != null) Padding(
+                                      padding: const EdgeInsets.only(top: 6.0),
+                                      child: Text('Error: $error', style: theme.textTheme.bodyMedium!.copyWith(color: Colors.red)),
+                                    ),
+                                  ],
+                                ),
+                              ),
+                              const SizedBox(width: 8),
+                              if (isUploading) IconButton(icon: const Icon(Icons.cancel), onPressed: () => _cancelUpload(name)),
+                              if (!isUploading && (_fileErrors[name] != null)) IconButton(icon: const Icon(Icons.refresh), onPressed: () => _retryUpload(name)),
+                            ],
+                          ),
+                        );
+                      }).toList(),
+                    ],
+                  ),
+                ),
+              ),
+              const SizedBox(height: 12),
+            ],
+
+            // Uploaded documents list
+            Card(
+              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+              child: Padding(
+                padding: const EdgeInsets.all(12.0),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text('Documents', style: theme.textTheme.titleMedium),
+                    const SizedBox(height: 8),
+                    if (widget.course.documents.isEmpty) Text('No documents uploaded yet.', style: theme.textTheme.bodyMedium),
+                    ...widget.course.documents.map((d) => ListTile(
+                          title: Text(d.name),
+                          subtitle: Text('by ${d.uploadedBy} • ${d.uploadedAt.toLocal().toString().split('.').first}'),
+                          trailing: IconButton(icon: const Icon(Icons.open_in_new), onPressed: () => _openUrl(d.url)),
+                        )),
+                  ],
+                ),
+              ),
+            ),
             const SizedBox(height: 32),
           ],
         ),
       ),
     );
+  }
+
+  // File picking and upload
+  bool _isUploading = false;
+  double _progress = 0.0;
+  // Per-file tracking
+  final Map<String, XFile> _pickedFiles = {};
+  final Map<String, UploadTask?> _fileTasks = {};
+  final Map<String, double> _fileProgress = {};
+  final Map<String, String?> _fileErrors = {};
+
+  Future<void> _pickAndUploadFiles() async {
+    try {
+
+      // Use file_selector to pick files across platforms
+      final pickedFiles = await openFiles();
+      if (pickedFiles.isEmpty) return;
+
+      setState(() { _isUploading = true; _progress = 0.0; });
+
+      int uploaded = 0;
+      for (final picked in pickedFiles) {
+        final filename = picked.name;
+        _pickedFiles[filename] = picked;
+        _fileProgress[filename] = 0.0;
+        _fileErrors[filename] = null;
+        final safeCourseId = widget.course.title.isNotEmpty ? widget.course.title.replaceAll(' ', '_') : 'untitled_course';
+        final ref = FirebaseStorage.instance.ref().child('courses/$safeCourseId/$filename');
+
+        UploadTask uploadTask;
+        if (kIsWeb) {
+          final bytes = await picked.readAsBytes();
+          uploadTask = ref.putData(bytes);
+        } else {
+          final path = picked.path;
+          final file = File(path);
+          uploadTask = ref.putFile(file);
+        }
+
+        // register task and listen to progress
+        _fileTasks[filename] = uploadTask;
+        uploadTask.snapshotEvents.listen((event) {
+          final total = event.totalBytes > 0 ? event.totalBytes : 1;
+          setState(() {
+            final p = event.bytesTransferred / total;
+            _fileProgress[filename] = p;
+            // overall progress: average of tracked files
+            _progress = _fileProgress.values.fold(0.0, (a, b) => a + b) / (_fileProgress.isEmpty ? 1 : _fileProgress.length);
+          });
+        }, onError: (e) {
+          setState(() {
+            _fileErrors[filename] = e.toString();
+            _fileTasks[filename] = null;
+          });
+        });
+
+        final snapshot = await uploadTask.whenComplete(() {});
+        final downloadUrl = await snapshot.ref.getDownloadURL();
+
+        // persist metadata in course
+        final uploaderId = FirebaseAuth.instance.currentUser?.uid ?? 'unknown';
+        final doc = CourseDocument(name: filename, url: downloadUrl, uploadedBy: uploaderId);
+        widget.course.documents.add(doc);
+        widget.onUpdate(widget.course);
+
+        // cleanup
+        _fileTasks.remove(filename);
+        _fileProgress.remove(filename);
+        _pickedFiles.remove(filename);
+
+        uploaded++;
+        ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Uploaded $filename')));
+      }
+
+      setState(() { _isUploading = false; _progress = 0.0; });
+
+      if (uploaded > 0) {
+        ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Uploaded $uploaded file(s)')));
+      }
+    } catch (e) {
+      setState(() { _isUploading = false; _progress = 0.0; });
+      ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Upload failed: $e')));
+    }
+  }
+
+  Future<void> _openUrl(String url) async {
+    final uri = Uri.tryParse(url);
+    if (uri == null) return;
+    if (!await launchUrl(uri)) {
+      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Could not open link')));
+    }
+  }
+
+  void _cancelUpload(String name) {
+    final task = _fileTasks[name];
+    if (task != null) {
+      task.cancel();
+      _fileTasks[name] = null;
+      _fileErrors[name] = 'Cancelled';
+      setState(() {});
+    }
+  }
+
+  Future<void> _retryUpload(String name) async {
+    final picked = _pickedFiles[name];
+    if (picked == null) {
+      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('No file available to retry.')));
+      return;
+    }
+
+    setState(() { _fileErrors[name] = null; _fileProgress[name] = 0.0; _isUploading = true; });
+
+    final safeCourseId = widget.course.title.isNotEmpty ? widget.course.title.replaceAll(' ', '_') : 'untitled_course';
+    final ref = FirebaseStorage.instance.ref().child('courses/$safeCourseId/$name');
+    UploadTask uploadTask;
+    try {
+      if (kIsWeb) {
+        final bytes = await picked.readAsBytes();
+        uploadTask = ref.putData(bytes);
+      } else {
+  final file = File(picked.path);
+        uploadTask = ref.putFile(file);
+      }
+
+      _fileTasks[name] = uploadTask;
+      uploadTask.snapshotEvents.listen((event) {
+        final total = event.totalBytes > 0 ? event.totalBytes : 1;
+        setState(() {
+          _fileProgress[name] = event.bytesTransferred / total;
+        });
+      }, onError: (e) {
+        setState(() {
+          _fileErrors[name] = e.toString();
+          _fileTasks[name] = null;
+        });
+      });
+
+      final snapshot = await uploadTask.whenComplete(() {});
+      final downloadUrl = await snapshot.ref.getDownloadURL();
+      final uploaderId = FirebaseAuth.instance.currentUser?.uid ?? 'unknown';
+      final doc = CourseDocument(name: name, url: downloadUrl, uploadedBy: uploaderId);
+      widget.course.documents.add(doc);
+      widget.onUpdate(widget.course);
+
+      _fileTasks.remove(name);
+      _fileProgress.remove(name);
+      _pickedFiles.remove(name);
+      setState(() { _isUploading = false; });
+      ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Uploaded $name')));
+    } catch (e) {
+      setState(() { _fileErrors[name] = e.toString(); _isUploading = false; _fileTasks[name] = null; });
+    }
   }
 }
 

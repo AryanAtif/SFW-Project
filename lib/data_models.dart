@@ -12,6 +12,9 @@ class Course {
 
   /// List of scores: each score has a type and a value (0-100)
   List<AssessmentScore> scores;
+  
+  /// Documents uploaded for this course
+  List<CourseDocument> documents;
 
   Course(
     this.title,
@@ -22,7 +25,8 @@ class Course {
     this.priority = 1,
     Map<String, double>? weightages,
     List<AssessmentScore>? scores,
-  }) : weightages = weightages ?? {}, scores = scores ?? [];
+  }) : weightages = weightages ?? {}, scores = scores ?? [], documents = [] {
+  }
 }
 
 class AssessmentScore {
@@ -30,6 +34,15 @@ class AssessmentScore {
   double value; // 0-100
 
   AssessmentScore({required this.type, required this.value});
+}
+
+class CourseDocument {
+  String name;
+  String url;
+  String uploadedBy; // user id or display name
+  DateTime uploadedAt;
+
+  CourseDocument({required this.name, required this.url, required this.uploadedBy, DateTime? uploadedAt}) : uploadedAt = uploadedAt ?? DateTime.now();
 }
 
 class Task {
