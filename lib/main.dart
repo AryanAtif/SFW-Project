@@ -10,6 +10,7 @@ import 'tasks_due_page.dart';
 import 'weekly_calendar_page.dart';
 import 'ai_assistant_page.dart';
 import 'gemini_chat_page.dart';
+import 'diagnostics_page.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -17,10 +18,16 @@ void main() async {
     options: DefaultFirebaseOptions.currentPlatform,
   );
   // Sign in anonymously so uploads are associated with a user id.
+  bool _anonSignedIn = false;
   try {
-    await FirebaseAuth.instance.signInAnonymously();
+    final result = await FirebaseAuth.instance.signInAnonymously();
+    _anonSignedIn = result.user != null;
+    if (!_anonSignedIn) debugPrint('Anonymous sign-in returned null user');
   } catch (e) {
-    // Ignore sign-in errors for now; uploads will still proceed but without uid
+    // Log sign-in errors so we can diagnose why storage requests may lack
+    // an auth token. Common causes: anonymous sign-in not enabled in the
+    // Firebase Console or network issues.
+    debugPrint('Anonymous sign-in failed: $e');
   }
   runApp(const StudentOrganizerApp());
 }
@@ -46,7 +53,7 @@ class StudentOrganizerApp extends StatelessWidget {
         ),
         useMaterial3: true,
       ),
-      home: const MainScaffold(),
+      home: MainScaffold(),
     );
   }
 }
@@ -194,6 +201,7 @@ class _MainScaffoldState extends State<MainScaffold> {
       const GeminiChatPage()    
     ];
 
+    final user = FirebaseAuth.instance.currentUser;
     return WillPopScope(
       onWillPop: () async {
         if (_selectedIndex != 0) {
@@ -240,10 +248,28 @@ class _MainScaffoldState extends State<MainScaffold> {
             _buildDrawerItem(title: 'Tasks Due', index: 3, context: context),
             _buildDrawerItem(title: 'AI Assistant', index: 4, context: context),
             // _buildDrawerItem(title: 'Gemini Chat', index: 5, context: context),
+            ListTile(
+              leading: const Icon(Icons.bug_report, color: Colors.white),
+              title: const Text('Diagnostics', style: TextStyle(color: Colors.white)),
+              onTap: () {
+                Navigator.pop(context);
+                Navigator.push(context, MaterialPageRoute(builder: (_) => const DiagnosticsPage()));
+              },
+            ),
           ],
         ),
       ),
-      body: pages[_selectedIndex],
+        body: Column(
+          children: [
+            if (user == null) Container(
+              width: double.infinity,
+              color: Colors.red.shade100,
+              padding: const EdgeInsets.all(8.0),
+              child: const Text('Warning: Not signed into Firebase (anonymous sign-in failed). Uploads may be rejected. Enable Anonymous sign-in in Firebase Console.', style: TextStyle(color: Colors.red)),
+            ),
+            Expanded(child: pages[_selectedIndex]),
+          ],
+        ),
     ),
     );
   }

@@ -57,6 +57,11 @@ class DefaultFirebaseOptions {
     appId: '1:161562917150:android:e04c663339ee6d693cb10f',
     messagingSenderId: '161562917150',
     projectId: 'basecamp-d30b9',
-    storageBucket: 'basecamp-d30b9.firebasestorage.app',
+    // Use the bucket hostname expected by Firebase Storage API. The
+    // FlutterFire SDK and underlying Android/iOS SDKs commonly expect
+    // the storage bucket in the form '<project-id>.appspot.com'. Using
+    // the '.firebasestorage.app' host can cause 404s on upload in some
+    // SDK versions, so prefer the appspot.com bucket name.
+    storageBucket: 'basecamp-d30b9.appspot.com',
   );
 }

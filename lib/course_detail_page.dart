@@ -3,6 +3,7 @@ import 'package:flutter/services.dart';
 import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:flutter/material.dart';
 import 'package:firebase_storage/firebase_storage.dart';
+import 'package:firebase_core/firebase_core.dart' show Firebase;
 import 'package:file_selector/file_selector.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:url_launcher/url_launcher.dart';
@@ -435,6 +436,19 @@ class _CourseDetailPageState extends State<CourseDetailPage> {
   Future<void> _pickAndUploadFiles() async {
     try {
 
+      // Print Firebase app/options to help debug Storage bucket issues
+      try {
+        final app = Firebase.app();
+        debugPrint('Firebase app name=${app.name}; projectId=${app.options.projectId}; storageBucket=${app.options.storageBucket}');
+      } catch (e) {
+        debugPrint('Unable to read Firebase.app() info: $e');
+      }
+      try {
+        debugPrint('FirebaseAuth currentUser=${FirebaseAuth.instance.currentUser?.uid}');
+      } catch (e) {
+        debugPrint('Unable to read FirebaseAuth currentUser: $e');
+      }
+
       // Use file_selector to pick files across platforms
       final pickedFiles = await openFiles();
       if (pickedFiles.isEmpty) return;
@@ -448,20 +462,26 @@ class _CourseDetailPageState extends State<CourseDetailPage> {
         _fileProgress[filename] = 0.0;
         _fileErrors[filename] = null;
         final safeCourseId = widget.course.title.isNotEmpty ? widget.course.title.replaceAll(' ', '_') : 'untitled_course';
-        final ref = FirebaseStorage.instance.ref().child('courses/$safeCourseId/$filename');
+        // Use the configured storage bucket from Firebase options if available.
+        String bucket = 'basecamp-d30b9.appspot.com';
+        try {
+          bucket = Firebase.app().options.storageBucket ?? bucket;
+        } catch (_) {}
+        final storage = FirebaseStorage.instanceFor(bucket: 'gs://$bucket');
+        final ref = storage.ref().child('courses/$safeCourseId/$filename');
 
         UploadTask uploadTask;
-        if (kIsWeb) {
-          final bytes = await picked.readAsBytes();
-          uploadTask = ref.putData(bytes);
-        } else {
-          // Some platforms (Android Scoped Storage) return content URIs without
-          // a direct file path. Use readAsBytes() which works across platforms
-          // and avoids permission/path issues that can lead to platform channel
-          // errors.
-          final bytes = await picked.readAsBytes();
-          uploadTask = ref.putData(bytes);
-        }
+        // Determine a conservative content type from file extension.
+        String contentType = 'application/octet-stream';
+        final lower = filename.toLowerCase();
+        if (lower.endsWith('.pdf')) contentType = 'application/pdf';
+        else if (lower.endsWith('.png')) contentType = 'image/png';
+        else if (lower.endsWith('.jpg') || lower.endsWith('.jpeg')) contentType = 'image/jpeg';
+        else if (lower.endsWith('.txt')) contentType = 'text/plain';
+
+        final bytes = await picked.readAsBytes();
+        final metadata = SettableMetadata(contentType: contentType);
+        uploadTask = ref.putData(bytes, metadata);
 
         // register task and listen to progress
         _fileTasks[filename] = uploadTask;
@@ -569,12 +589,24 @@ class _CourseDetailPageState extends State<CourseDetailPage> {
     setState(() { _fileErrors[name] = null; _fileProgress[name] = 0.0; _isUploading = true; });
 
     final safeCourseId = widget.course.title.isNotEmpty ? widget.course.title.replaceAll(' ', '_') : 'untitled_course';
-    final ref = FirebaseStorage.instance.ref().child('courses/$safeCourseId/$name');
-    UploadTask uploadTask;
+    String bucket = 'basecamp-d30b9.appspot.com';
     try {
-      // Use bytes for retry as well to avoid path issues
-      final bytes = await picked.readAsBytes();
-      uploadTask = ref.putData(bytes);
+      bucket = Firebase.app().options.storageBucket ?? bucket;
+    } catch (_) {}
+    final storage = FirebaseStorage.instanceFor(bucket: 'gs://$bucket');
+    final ref = storage.ref().child('courses/$safeCourseId/$name');
+    UploadTask uploadTask;
+      try {
+        // Use bytes for retry as well to avoid path issues
+        String contentType = 'application/octet-stream';
+        final lower = name.toLowerCase();
+        if (lower.endsWith('.pdf')) contentType = 'application/pdf';
+        else if (lower.endsWith('.png')) contentType = 'image/png';
+        else if (lower.endsWith('.jpg') || lower.endsWith('.jpeg')) contentType = 'image/jpeg';
+        else if (lower.endsWith('.txt')) contentType = 'text/plain';
+        final bytes = await picked.readAsBytes();
+        final metadata = SettableMetadata(contentType: contentType);
+        uploadTask = ref.putData(bytes, metadata);
 
       _fileTasks[name] = uploadTask;
       uploadTask.snapshotEvents.listen((event) {
