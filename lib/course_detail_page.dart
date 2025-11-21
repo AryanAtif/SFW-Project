@@ -481,22 +481,52 @@ class _CourseDetailPageState extends State<CourseDetailPage> {
         });
 
   final snapshot = await uploadTask.whenComplete(() {});
-  final downloadUrl = await snapshot.ref.getDownloadURL();
 
-  // persist metadata in course
-  final uploaderId = FirebaseAuth.instance.currentUser?.uid ?? 'unknown';
-  final doc = CourseDocument(name: filename, url: downloadUrl, uploadedBy: uploaderId);
-  widget.course.documents.add(doc);
-  widget.onUpdate(widget.course);
+  // Diagnostic logging to help track down object-not-found issues
+  try {
+    debugPrint('Upload finished for "$filename"; snapshot.state=${snapshot.state}; ref=${snapshot.ref.fullPath}; bytesTransferred=${snapshot.bytesTransferred}; totalBytes=${snapshot.totalBytes}');
+  } catch (e) {
+    debugPrint('Failed to print snapshot diagnostics for $filename: $e');
+  }
 
-  // cleanup
-  _fileTasks.remove(filename);
-  _fileProgress.remove(filename);
-  _pickedFiles.remove(filename);
+  if (snapshot.state == TaskState.success) {
+    try {
+      final downloadUrl = await snapshot.ref.getDownloadURL();
 
-  uploaded++;
-  if (!mounted) return;
-  ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Uploaded $filename')));
+      // persist metadata in course
+      final uploaderId = FirebaseAuth.instance.currentUser?.uid ?? 'unknown';
+      final doc = CourseDocument(name: filename, url: downloadUrl, uploadedBy: uploaderId);
+      widget.course.documents.add(doc);
+      widget.onUpdate(widget.course);
+
+      // cleanup
+      _fileTasks.remove(filename);
+      _fileProgress.remove(filename);
+      _pickedFiles.remove(filename);
+
+      uploaded++;
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Uploaded $filename')));
+    } on FirebaseException catch (fe) {
+      debugPrint('FirebaseException when getting download URL for $filename: ${fe.code} ${fe.message}');
+      setState(() {
+        _fileErrors[filename] = 'Failed to get download URL: ${fe.message}';
+        _fileTasks[filename] = null;
+      });
+    } catch (e, st) {
+      debugPrint('Unexpected error getting download URL for $filename: $e\n$st');
+      setState(() {
+        _fileErrors[filename] = 'Failed to get download URL: $e';
+        _fileTasks[filename] = null;
+      });
+    }
+  } else {
+    debugPrint('Upload task did not complete successfully for $filename. state=${snapshot.state}');
+    setState(() {
+      _fileErrors[filename] = 'Upload did not complete successfully (${snapshot.state})';
+      _fileTasks[filename] = null;
+    });
+  }
       }
 
       setState(() { _isUploading = false; _progress = 0.0; });
@@ -562,18 +592,45 @@ class _CourseDetailPageState extends State<CourseDetailPage> {
       });
 
       final snapshot = await uploadTask.whenComplete(() {});
-      final downloadUrl = await snapshot.ref.getDownloadURL();
-      final uploaderId = FirebaseAuth.instance.currentUser?.uid ?? 'unknown';
-      final doc = CourseDocument(name: name, url: downloadUrl, uploadedBy: uploaderId);
-      widget.course.documents.add(doc);
-      widget.onUpdate(widget.course);
 
-      _fileTasks.remove(name);
-      _fileProgress.remove(name);
-      _pickedFiles.remove(name);
-      if (!mounted) return;
-      setState(() { _isUploading = false; });
-      ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Uploaded $name')));
+      // Diagnostic logging for retry path
+      try {
+        debugPrint('Retry upload finished for "$name"; snapshot.state=${snapshot.state}; ref=${snapshot.ref.fullPath}; bytesTransferred=${snapshot.bytesTransferred}; totalBytes=${snapshot.totalBytes}');
+      } catch (e) {
+        debugPrint('Failed to print retry snapshot diagnostics for $name: $e');
+      }
+
+      if (snapshot.state == TaskState.success) {
+        try {
+          final downloadUrl = await snapshot.ref.getDownloadURL();
+          final uploaderId = FirebaseAuth.instance.currentUser?.uid ?? 'unknown';
+          final doc = CourseDocument(name: name, url: downloadUrl, uploadedBy: uploaderId);
+          widget.course.documents.add(doc);
+          widget.onUpdate(widget.course);
+
+          _fileTasks.remove(name);
+          _fileProgress.remove(name);
+          _pickedFiles.remove(name);
+          if (!mounted) return;
+          setState(() { _isUploading = false; });
+          ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Uploaded $name')));
+        } on FirebaseException catch (fe) {
+          debugPrint('FirebaseException when getting download URL for $name on retry: ${fe.code} ${fe.message}');
+          if (!mounted) return;
+          setState(() { _fileErrors[name] = 'Failed to get download URL: ${fe.message}'; _isUploading = false; _fileTasks[name] = null; });
+          ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Upload failed: ${fe.message}')));
+        } catch (e, st) {
+          debugPrint('Unexpected error getting download URL for $name on retry: $e\n$st');
+          if (!mounted) return;
+          setState(() { _fileErrors[name] = e.toString(); _isUploading = false; _fileTasks[name] = null; });
+          ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Upload failed: $e')));
+        }
+      } else {
+        debugPrint('Retry upload task did not complete successfully for $name. state=${snapshot.state}');
+        if (!mounted) return;
+        setState(() { _fileErrors[name] = 'Upload did not complete successfully (${snapshot.state})'; _isUploading = false; _fileTasks[name] = null; });
+        ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Upload failed: ${snapshot.state}')));
+      }
     } on PlatformException catch (pe) {
       if (!mounted) return;
       setState(() { _fileErrors[name] = pe.message; _isUploading = false; _fileTasks[name] = null; });
