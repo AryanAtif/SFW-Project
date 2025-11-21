@@ -1,6 +1,9 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
-import 'package:flutter_dotenv/flutter_dotenv.dart';
+// dotenv temporarily removed to avoid runtime init errors on some devices.
+// To enable .env support again, re-add flutter_dotenv and load it safely.
 
 import 'data_models.dart';
 import 'home_page.dart';
@@ -10,21 +13,69 @@ import 'weekly_calendar_page.dart';
 import 'ai_assistant_page.dart';
 import 'gemini_chat_page.dart';
 import 'diagnostics_page.dart';
+import 'auth_page.dart';
 
 void main() async {
-  WidgetsFlutterBinding.ensureInitialized();
-  // Load environment (optional). If you provide a .env file with SUPABASE_URL
-  // and SUPABASE_ANON_KEY those will be used. Otherwise the inline defaults
-  // below are used (you should rotate/remove them for production).
-  await dotenv.load();
-  final supabaseUrl = dotenv.env['SUPABASE_URL'] ?? 'https://xgecdpvziuvwyqmrejvn.supabase.co';
-  final supabaseKey = dotenv.env['SUPABASE_ANON_KEY'] ?? 'sb_secret_TxZ-fYRTADGf4krwo716Cw_DpPXcfm8';
+  // Run the whole bootstrap inside a guarded zone so the binding is created
+  // in the same zone that `runApp` will use (avoids 'Zone mismatch').
+  runZonedGuarded(() async {
+    WidgetsFlutterBinding.ensureInitialized();
 
-  await Supabase.initialize(
-    url: supabaseUrl,
-    anonKey: supabaseKey,
-  );
-  runApp(const StudentOrganizerApp());
+    // Install a global Flutter error handler so uncaught framework errors are
+    // rendered as a visible UI instead of silently leaving a black screen.
+    FlutterError.onError = (FlutterErrorDetails details) {
+      FlutterError.dumpErrorToConsole(details);
+      _showFatalError(details.exceptionAsString(), details.stack?.toString() ?? '');
+    };
+
+    // Use inline Supabase credentials for now to avoid startup failures.
+    // Replace with secure environment loading in a follow-up change.
+    final supabaseUrl = 'https://xgecdpvziuvwyqmrejvn.supabase.co';
+    final supabaseKey = 'sb_secret_TxZ-fYRTADGf4krwo716Cw_DpPXcfm8';
+
+    try {
+      await Supabase.initialize(
+        url: supabaseUrl,
+        anonKey: supabaseKey,
+      );
+    } catch (e, st) {
+      _showFatalError(e.toString(), st.toString());
+      return;
+    }
+
+    runApp(const StudentOrganizerApp());
+  }, (e, st) {
+    _showFatalError(e.toString(), st.toString());
+  });
+}
+
+// Replace the running app with a simple error display so users can see
+// exceptions that would otherwise leave the screen blank.
+void _showFatalError(String error, String stack) {
+  // Ensure we replace the UI on the next microtask so any ongoing
+  // widget work completes.
+  scheduleMicrotask(() {
+    runApp(MaterialApp(
+      home: Scaffold(
+        appBar: AppBar(title: const Text('Fatal Error')),
+        body: Padding(
+          padding: const EdgeInsets.all(16.0),
+          child: SingleChildScrollView(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                const Text('An unexpected error occurred', style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
+                const SizedBox(height: 12),
+                Text(error),
+                const SizedBox(height: 12),
+                Text(stack),
+              ],
+            ),
+          ),
+        ),
+      ),
+    ));
+  });
 }
 
 class StudentOrganizerApp extends StatelessWidget {
@@ -48,7 +99,7 @@ class StudentOrganizerApp extends StatelessWidget {
         ),
         useMaterial3: true,
       ),
-      home: MainScaffold(),
+  home: const AuthGate(),
     );
   }
 }
