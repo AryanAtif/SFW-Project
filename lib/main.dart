@@ -137,6 +137,13 @@ class _MainScaffoldState extends State<MainScaffold> {
   void removeReminder(Reminder reminder) {
     setState(() => reminders.remove(reminder));
   }
+
+  // Called when a course object is edited to trigger UI refresh
+  void updateCourse(Course course) {
+    setState(() {
+      // Course objects are mutable; calling setState will refresh the UI
+    });
+  }
   
   void _onItemTapped(int index) {
     setState(() {
@@ -158,7 +165,8 @@ class _MainScaffoldState extends State<MainScaffold> {
       CoursesPage(
         courses: courses,
         addCourse: addCourse,
-        removeCourse: removeCourse
+        removeCourse: removeCourse,
+        updateCourse: updateCourse,
       ),
       WeeklyCalendarPage(
         reminders: reminders,

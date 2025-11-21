@@ -5,6 +5,7 @@ class CoursesPage extends StatelessWidget {
   final List<Course> courses;
   final Function(Course) addCourse;
   final Function(Course) removeCourse;
+  final Function(Course) updateCourse;
 
   const CoursesPage
   (
@@ -13,6 +14,7 @@ class CoursesPage extends StatelessWidget {
       required this.courses,
       required this.addCourse,
       required this.removeCourse,
+      required this.updateCourse,
     }
   );
 
@@ -41,6 +43,7 @@ class CoursesPage extends StatelessWidget {
           ...courses.map((course) => _CourseButton(
             course: course,
             onRemove: removeCourse,
+            onUpdate: updateCourse,
             )).toList(),
           
           const SizedBox(height: 40),
@@ -134,15 +137,142 @@ class CoursesPage extends StatelessWidget {
   }
 }
 
+// Widget to add a new weightage entry
+class _AddWeightageRow extends StatefulWidget {
+  final Course course;
+  final Function(Course) onUpdate;
+
+  const _AddWeightageRow({required this.course, required this.onUpdate});
+
+  @override
+  State<_AddWeightageRow> createState() => _AddWeightageRowState();
+}
+
+class _AddWeightageRowState extends State<_AddWeightageRow> {
+  final _typeController = TextEditingController();
+  final _weightController = TextEditingController();
+
+  @override
+  void dispose() {
+    _typeController.dispose();
+    _weightController.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Row(
+      children: [
+        Expanded(
+          child: TextField(
+            controller: _typeController,
+            decoration: const InputDecoration(hintText: 'Type (e.g. quiz)'),
+          ),
+        ),
+        const SizedBox(width: 8),
+        SizedBox(
+          width: 100,
+          child: TextField(
+            controller: _weightController,
+            keyboardType: TextInputType.numberWithOptions(decimal: true),
+            decoration: const InputDecoration(hintText: 'Weight %'),
+          ),
+        ),
+        IconButton(
+          icon: const Icon(Icons.add),
+          onPressed: () {
+            final type = _typeController.text.trim();
+            final parsed = double.tryParse(_weightController.text) ?? 0.0;
+            if (type.isNotEmpty && parsed > 0) {
+              setState(() {
+                widget.course.weightages[type] = (parsed/100).clamp(0.0, 1.0);
+              });
+              widget.onUpdate(widget.course);
+              _typeController.clear();
+              _weightController.clear();
+            }
+          },
+        ),
+      ],
+    );
+  }
+}
+
+// Widget to add a new score entry
+class _AddScoreRow extends StatefulWidget {
+  final Course course;
+  final Function(Course) onUpdate;
+
+  const _AddScoreRow({required this.course, required this.onUpdate});
+
+  @override
+  State<_AddScoreRow> createState() => _AddScoreRowState();
+}
+
+class _AddScoreRowState extends State<_AddScoreRow> {
+  String? _selectedType;
+  final _scoreController = TextEditingController();
+
+  @override
+  void dispose() {
+    _scoreController.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final types = widget.course.weightages.keys.toList();
+    return Row(
+      children: [
+        Expanded(
+          child: types.isEmpty
+              ? TextField(
+                  decoration: const InputDecoration(hintText: 'Type (e.g. quiz)'),
+                  onChanged: (v) => _selectedType = v,
+                )
+              : DropdownButton<String>(
+                  value: _selectedType ?? (types.isNotEmpty ? types.first : null),
+                  items: types.map((t) => DropdownMenuItem(value: t, child: Text(t))).toList(),
+                  onChanged: (v) => setState(() => _selectedType = v),
+                ),
+        ),
+        const SizedBox(width: 8),
+        SizedBox(
+          width: 100,
+          child: TextField(
+            controller: _scoreController,
+            keyboardType: TextInputType.numberWithOptions(decimal: true),
+            decoration: const InputDecoration(hintText: 'Score'),
+          ),
+        ),
+        IconButton(
+          icon: const Icon(Icons.add),
+          onPressed: () {
+            final type = _selectedType;
+            final parsed = double.tryParse(_scoreController.text) ?? -1;
+            if ((type != null && type.isNotEmpty) && parsed >= 0) {
+              widget.course.scores.add(AssessmentScore(type: type, value: parsed.clamp(0.0, 100.0)));
+              widget.onUpdate(widget.course);
+              _scoreController.clear();
+            }
+          },
+        ),
+      ],
+    );
+  }
+}
+
 // Course button widget (unchanged visually)
 
 class _CourseButton extends StatelessWidget {
   final Course course;
   final Function(Course) onRemove;
+  final Function(Course) onUpdate;
 
   const _CourseButton({
     required this.course,
     required this.onRemove,
+    required this.onUpdate,
   });
 
   @override
@@ -207,36 +337,166 @@ class _CourseButton extends StatelessWidget {
                 TextField(
                   controller: titleController,
                   decoration: const InputDecoration(labelText: 'Course Title'),
-                  onChanged: (value) => course.title = value,
+                  onChanged: (value) {
+                    course.title = value;
+                    onUpdate(course);
+                  },
                 ),
                 TextField(
                   controller: creditHoursController,
                   decoration: const InputDecoration(labelText: 'Credit Hours'),
                   keyboardType: TextInputType.number,
-                  onChanged: (value) => course.creditHours = int.tryParse(value) ?? course.creditHours,
+                  onChanged: (value) {
+                    course.creditHours = int.tryParse(value) ?? course.creditHours;
+                    onUpdate(course);
+                  },
                 ),
                 TextField(
                   controller: instructorController,
                   decoration: const InputDecoration(labelText: 'Instructor'),
-                  onChanged: (value) => course.instructor = value,
+                  onChanged: (value) {
+                    course.instructor = value;
+                    onUpdate(course);
+                  },
                 ),
                 TextField(
                   controller: scheduleController,
                   decoration: const InputDecoration(labelText: 'Schedule'),
-                  onChanged: (value) => course.schedule = value,
+                  onChanged: (value) {
+                    course.schedule = value;
+                    onUpdate(course);
+                  },
                 ),
                 TextField(
                   controller: descriptionController,
                   decoration: const InputDecoration(labelText: 'Description'),
                   maxLines: 3,
-                  onChanged: (value) => course.description = value,
+                  onChanged: (value) {
+                    course.description = value;
+                    onUpdate(course);
+                  },
                 ),
+                const SizedBox(height: 12),
+                // Priority selector
+                Row(
+                  children: [
+                    const Text('Priority: '),
+                    const SizedBox(width: 12),
+                    DropdownButton<int>(
+                      value: course.priority,
+                      items: const [
+                        DropdownMenuItem(value: 0, child: Text('Low')),
+                        DropdownMenuItem(value: 1, child: Text('Medium')),
+                        DropdownMenuItem(value: 2, child: Text('High')),
+                      ],
+                      onChanged: (v) {
+                        if (v != null) {
+                          course.priority = v;
+                          onUpdate(course);
+                        }
+                      },
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 12),
+                // Weightages management
+                const Text('Assessment Types & Weightages', style: TextStyle(fontWeight: FontWeight.bold)),
+                const SizedBox(height: 8),
+                ...course.weightages.entries.map((entry) {
+                  final type = entry.key;
+                  final weightController = TextEditingController(text: entry.value.toString());
+                  return Row(
+                    children: [
+                      Expanded(child: Text(type)),
+                      SizedBox(
+                        width: 80,
+                        child: TextField(
+                          controller: weightController,
+                          keyboardType: TextInputType.numberWithOptions(decimal: true),
+                          decoration: const InputDecoration(suffixText: '%'),
+                          onSubmitted: (val) {
+                            final parsed = double.tryParse(val) ?? entry.value;
+                            course.weightages[type] = (parsed/100).clamp(0.0, 1.0);
+                            onUpdate(course);
+                          },
+                        ),
+                      ),
+                      IconButton(
+                        icon: const Icon(Icons.delete_outline, size: 20),
+                        onPressed: () {
+                          course.weightages.remove(type);
+                          onUpdate(course);
+                        },
+                      )
+                    ],
+                  );
+                }).toList(),
+                const SizedBox(height: 8),
+                _AddWeightageRow(course: course, onUpdate: onUpdate),
+                const SizedBox(height: 12),
+                // Scores management
+                const Text('Scores', style: TextStyle(fontWeight: FontWeight.bold)),
+                const SizedBox(height: 8),
+                ...course.scores.asMap().entries.map((e) {
+                  final idx = e.key;
+                  final s = e.value;
+                  final scoreController = TextEditingController(text: s.value.toString());
+                  return Row(
+                    children: [
+                      Expanded(child: Text(s.type)),
+                      SizedBox(
+                        width: 80,
+                        child: TextField(
+                          controller: scoreController,
+                          keyboardType: TextInputType.numberWithOptions(decimal: true),
+                          onSubmitted: (val) {
+                            final parsed = double.tryParse(val) ?? s.value;
+                            s.value = parsed.clamp(0.0, 100.0);
+                            onUpdate(course);
+                          },
+                        ),
+                      ),
+                      IconButton(
+                        icon: const Icon(Icons.delete_outline, size: 20),
+                        onPressed: () {
+                          course.scores.removeAt(idx);
+                          onUpdate(course);
+                        },
+                      )
+                    ],
+                  );
+                }).toList(),
+                const SizedBox(height: 8),
+                _AddScoreRow(course: course, onUpdate: onUpdate),
+                const SizedBox(height: 12),
+                // Computed final grade
+                Builder(builder: (context) {
+                  double computeFinal() {
+                    if (course.weightages.isEmpty || course.scores.isEmpty) return 0.0;
+                    // group scores by type and compute average per type
+                    final Map<String, List<double>> grouped = {};
+                    for (final s in course.scores) {
+                      grouped.putIfAbsent(s.type, () => []).add(s.value);
+                    }
+                    double total = 0.0;
+                    for (final entry in grouped.entries) {
+                      final type = entry.key;
+                      final avg = entry.value.reduce((a,b) => a+b)/entry.value.length;
+                      final weight = course.weightages[type] ?? 0.0;
+                      total += avg * weight;
+                    }
+                    return total;
+                  }
+
+                  final finalPercent = computeFinal();
+                  return Text('Estimated Final: ${finalPercent.toStringAsFixed(2)}%');
+                }),
                 const SizedBox(height: 20),
                 ElevatedButton.icon(
                   onPressed: () {
-                    ScaffoldMessenger.of(context).showSnackBar(
+                    /*ScaffoldMessenger.of(context).showSnackBar(
                       const SnackBar(content: Text('Document upload feature coming soon!')),
-                    );
+                    );*/
                   },
                   icon: const Icon(Icons.upload_file),
                   label: const Text('Upload Documents'),

@@ -1,0 +1,29 @@
+{
+  "project_info": {
+    "project_number": "161562917150",
+    "project_id": "basecamp-d30b9",
+    "storage_bucket": "basecamp-d30b9.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:161562917150:android:e04c663339ee6d693cb10f",
+        "android_client_info": {
+          "package_name": "com.example.gemini_code_2"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyA0gxs5zkOJT4htK2Zu_bY4GljjghQlSKA"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}
