@@ -1,11 +1,10 @@
 import 'package:flutter/services.dart';
 
-import 'package:flutter/foundation.dart' show kIsWeb;
+// import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:flutter/material.dart';
-import 'package:firebase_storage/firebase_storage.dart';
-import 'package:firebase_core/firebase_core.dart' show Firebase;
+import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:file_selector/file_selector.dart';
-import 'package:firebase_auth/firebase_auth.dart';
+// Firebase Auth removed; using Supabase Auth
 import 'package:url_launcher/url_launcher.dart';
 
 import 'data_models.dart';
@@ -15,8 +14,7 @@ enum _UploadStatus { pending, uploading, done, error, cancelled }
 class _UploadItem {
   final String name;
   final XFile file;
-  UploadTask? task;
-  double progress = 0.0;
+  double progress = 0.0; // 0.0 - 1.0; Supabase upload is a single call so we use indeterminate progress
   _UploadStatus status = _UploadStatus.pending;
   String? error;
   String? downloadUrl;
@@ -364,7 +362,7 @@ class _CourseDetailPageState extends State<CourseDetailPage> {
                       ..._pickedFiles.keys.map((name) {
                         final progress = _fileProgress[name] ?? 0.0;
                         final error = _fileErrors[name];
-                        final isUploading = _fileTasks[name] != null;
+                        final isUploading = _fileUploading[name] == true;
                         return Padding(
                           padding: const EdgeInsets.symmetric(vertical: 6.0),
                           child: Row(
@@ -429,26 +427,13 @@ class _CourseDetailPageState extends State<CourseDetailPage> {
   double _progress = 0.0;
   // Per-file tracking
   final Map<String, XFile> _pickedFiles = {};
-  final Map<String, UploadTask?> _fileTasks = {};
+  // Using bool to indicate an active upload (Supabase upload cannot be cancelled via SDK)
+  final Map<String, bool> _fileUploading = {};
   final Map<String, double> _fileProgress = {};
   final Map<String, String?> _fileErrors = {};
 
   Future<void> _pickAndUploadFiles() async {
     try {
-
-      // Print Firebase app/options to help debug Storage bucket issues
-      try {
-        final app = Firebase.app();
-        debugPrint('Firebase app name=${app.name}; projectId=${app.options.projectId}; storageBucket=${app.options.storageBucket}');
-      } catch (e) {
-        debugPrint('Unable to read Firebase.app() info: $e');
-      }
-      try {
-        debugPrint('FirebaseAuth currentUser=${FirebaseAuth.instance.currentUser?.uid}');
-      } catch (e) {
-        debugPrint('Unable to read FirebaseAuth currentUser: $e');
-      }
-
       // Use file_selector to pick files across platforms
       final pickedFiles = await openFiles();
       if (pickedFiles.isEmpty) return;
@@ -461,16 +446,15 @@ class _CourseDetailPageState extends State<CourseDetailPage> {
         _pickedFiles[filename] = picked;
         _fileProgress[filename] = 0.0;
         _fileErrors[filename] = null;
+        _fileUploading[filename] = true;
         final safeCourseId = widget.course.title.isNotEmpty ? widget.course.title.replaceAll(' ', '_') : 'untitled_course';
-        // Use the configured storage bucket from Firebase options if available.
-        String bucket = 'basecamp-d30b9.appspot.com';
-        try {
-          bucket = Firebase.app().options.storageBucket ?? bucket;
-        } catch (_) {}
-        final storage = FirebaseStorage.instanceFor(bucket: 'gs://$bucket');
-        final ref = storage.ref().child('courses/$safeCourseId/$filename');
 
-        UploadTask uploadTask;
+        // Use Supabase storage. Default to 'public' bucket; change if you use
+        // a different bucket name in your Supabase project.
+        final supabase = Supabase.instance.client;
+        final bucket = 'public';
+        final path = 'courses/$safeCourseId/$filename';
+
         // Determine a conservative content type from file extension.
         String contentType = 'application/octet-stream';
         final lower = filename.toLowerCase();
@@ -479,74 +463,33 @@ class _CourseDetailPageState extends State<CourseDetailPage> {
         else if (lower.endsWith('.jpg') || lower.endsWith('.jpeg')) contentType = 'image/jpeg';
         else if (lower.endsWith('.txt')) contentType = 'text/plain';
 
-        final bytes = await picked.readAsBytes();
-        final metadata = SettableMetadata(contentType: contentType);
-        uploadTask = ref.putData(bytes, metadata);
+        try {
+          final bytes = await picked.readAsBytes();
 
-        // register task and listen to progress
-        _fileTasks[filename] = uploadTask;
-        uploadTask.snapshotEvents.listen((event) {
-          final total = event.totalBytes > 0 ? event.totalBytes : 1;
-          setState(() {
-            final p = event.bytesTransferred / total;
-            _fileProgress[filename] = p;
-            // overall progress: average of tracked files
-            _progress = _fileProgress.values.fold(0.0, (a, b) => a + b) / (_fileProgress.isEmpty ? 1 : _fileProgress.length);
-          });
-        }, onError: (e) {
-          setState(() {
-            _fileErrors[filename] = e.toString();
-            _fileTasks[filename] = null;
-          });
-        });
+          // Supabase storage upload (binary)
+          await supabase.storage.from(bucket).uploadBinary(path, bytes, fileOptions: FileOptions(contentType: contentType));
 
-  final snapshot = await uploadTask.whenComplete(() {});
+          // Try to get a public URL. This returns a string when using the
+          // current Supabase SDK.
+          String publicUrl = supabase.storage.from(bucket).getPublicUrl(path);
 
-  // Diagnostic logging to help track down object-not-found issues
-  try {
-    debugPrint('Upload finished for "$filename"; snapshot.state=${snapshot.state}; ref=${snapshot.ref.fullPath}; bytesTransferred=${snapshot.bytesTransferred}; totalBytes=${snapshot.totalBytes}');
-  } catch (e) {
-    debugPrint('Failed to print snapshot diagnostics for $filename: $e');
-  }
+          final uploaderId = Supabase.instance.client.auth.currentUser?.id ?? 'unknown';
+          final doc = CourseDocument(name: filename, url: publicUrl, uploadedBy: uploaderId);
+          widget.course.documents.add(doc);
+          widget.onUpdate(widget.course);
 
-  if (snapshot.state == TaskState.success) {
-    try {
-      final downloadUrl = await snapshot.ref.getDownloadURL();
-
-      // persist metadata in course
-      final uploaderId = FirebaseAuth.instance.currentUser?.uid ?? 'unknown';
-      final doc = CourseDocument(name: filename, url: downloadUrl, uploadedBy: uploaderId);
-      widget.course.documents.add(doc);
-      widget.onUpdate(widget.course);
-
-      // cleanup
-      _fileTasks.remove(filename);
-      _fileProgress.remove(filename);
-      _pickedFiles.remove(filename);
-
-      uploaded++;
-      if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Uploaded $filename')));
-    } on FirebaseException catch (fe) {
-      debugPrint('FirebaseException when getting download URL for $filename: ${fe.code} ${fe.message}');
-      setState(() {
-        _fileErrors[filename] = 'Failed to get download URL: ${fe.message}';
-        _fileTasks[filename] = null;
-      });
-    } catch (e, st) {
-      debugPrint('Unexpected error getting download URL for $filename: $e\n$st');
-      setState(() {
-        _fileErrors[filename] = 'Failed to get download URL: $e';
-        _fileTasks[filename] = null;
-      });
-    }
-  } else {
-    debugPrint('Upload task did not complete successfully for $filename. state=${snapshot.state}');
-    setState(() {
-      _fileErrors[filename] = 'Upload did not complete successfully (${snapshot.state})';
-      _fileTasks[filename] = null;
-    });
-  }
+          // mark done
+          _fileUploading.remove(filename);
+          _fileProgress.remove(filename);
+          _pickedFiles.remove(filename);
+          uploaded++;
+          if (!mounted) return;
+          ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Uploaded $filename')));
+        } catch (e, st) {
+          debugPrint('Supabase upload error for $filename: $e\n$st');
+          _fileErrors[filename] = e.toString();
+          _fileUploading.remove(filename);
+        }
       }
 
       setState(() { _isUploading = false; _progress = 0.0; });
@@ -569,10 +512,10 @@ class _CourseDetailPageState extends State<CourseDetailPage> {
   }
 
   void _cancelUpload(String name) {
-    final task = _fileTasks[name];
-    if (task != null) {
-      task.cancel();
-      _fileTasks[name] = null;
+    // Supabase uploads are single-shot HTTP requests; we cannot reliably
+    // cancel them via the client SDK. Mark the upload as cancelled locally.
+    if (_fileUploading[name] == true) {
+      _fileUploading.remove(name);
       _fileErrors[name] = 'Cancelled';
       setState(() {});
     }
@@ -586,90 +529,42 @@ class _CourseDetailPageState extends State<CourseDetailPage> {
       return;
     }
 
-    setState(() { _fileErrors[name] = null; _fileProgress[name] = 0.0; _isUploading = true; });
+    setState(() { _fileErrors[name] = null; _fileProgress[name] = 0.0; _isUploading = true; _fileUploading[name] = true; });
 
     final safeCourseId = widget.course.title.isNotEmpty ? widget.course.title.replaceAll(' ', '_') : 'untitled_course';
-    String bucket = 'basecamp-d30b9.appspot.com';
+    final supabase = Supabase.instance.client;
+    final bucket = 'public';
+    final path = 'courses/$safeCourseId/$name';
     try {
-      bucket = Firebase.app().options.storageBucket ?? bucket;
-    } catch (_) {}
-    final storage = FirebaseStorage.instanceFor(bucket: 'gs://$bucket');
-    final ref = storage.ref().child('courses/$safeCourseId/$name');
-    UploadTask uploadTask;
-      try {
-        // Use bytes for retry as well to avoid path issues
-        String contentType = 'application/octet-stream';
-        final lower = name.toLowerCase();
-        if (lower.endsWith('.pdf')) contentType = 'application/pdf';
-        else if (lower.endsWith('.png')) contentType = 'image/png';
-        else if (lower.endsWith('.jpg') || lower.endsWith('.jpeg')) contentType = 'image/jpeg';
-        else if (lower.endsWith('.txt')) contentType = 'text/plain';
-        final bytes = await picked.readAsBytes();
-        final metadata = SettableMetadata(contentType: contentType);
-        uploadTask = ref.putData(bytes, metadata);
+      // Determine content type
+      String contentType = 'application/octet-stream';
+      final lower = name.toLowerCase();
+      if (lower.endsWith('.pdf')) contentType = 'application/pdf';
+      else if (lower.endsWith('.png')) contentType = 'image/png';
+      else if (lower.endsWith('.jpg') || lower.endsWith('.jpeg')) contentType = 'image/jpeg';
+      else if (lower.endsWith('.txt')) contentType = 'text/plain';
+      final bytes = await picked.readAsBytes();
 
-      _fileTasks[name] = uploadTask;
-      uploadTask.snapshotEvents.listen((event) {
-        final total = event.totalBytes > 0 ? event.totalBytes : 1;
-        if (!mounted) return;
-        setState(() {
-          _fileProgress[name] = event.bytesTransferred / total;
-        });
-      }, onError: (e) {
-        if (!mounted) return;
-        setState(() {
-          _fileErrors[name] = e.toString();
-          _fileTasks[name] = null;
-        });
-      });
+      await supabase.storage.from(bucket).uploadBinary(path, bytes, fileOptions: FileOptions(contentType: contentType));
 
-      final snapshot = await uploadTask.whenComplete(() {});
+      // get public url
+  final publicUrl = supabase.storage.from(bucket).getPublicUrl(path);
 
-      // Diagnostic logging for retry path
-      try {
-        debugPrint('Retry upload finished for "$name"; snapshot.state=${snapshot.state}; ref=${snapshot.ref.fullPath}; bytesTransferred=${snapshot.bytesTransferred}; totalBytes=${snapshot.totalBytes}');
-      } catch (e) {
-        debugPrint('Failed to print retry snapshot diagnostics for $name: $e');
-      }
+  final uploaderId = Supabase.instance.client.auth.currentUser?.id ?? 'unknown';
+      final doc = CourseDocument(name: name, url: publicUrl, uploadedBy: uploaderId);
+      widget.course.documents.add(doc);
+      widget.onUpdate(widget.course);
 
-      if (snapshot.state == TaskState.success) {
-        try {
-          final downloadUrl = await snapshot.ref.getDownloadURL();
-          final uploaderId = FirebaseAuth.instance.currentUser?.uid ?? 'unknown';
-          final doc = CourseDocument(name: name, url: downloadUrl, uploadedBy: uploaderId);
-          widget.course.documents.add(doc);
-          widget.onUpdate(widget.course);
-
-          _fileTasks.remove(name);
-          _fileProgress.remove(name);
-          _pickedFiles.remove(name);
-          if (!mounted) return;
-          setState(() { _isUploading = false; });
-          ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Uploaded $name')));
-        } on FirebaseException catch (fe) {
-          debugPrint('FirebaseException when getting download URL for $name on retry: ${fe.code} ${fe.message}');
-          if (!mounted) return;
-          setState(() { _fileErrors[name] = 'Failed to get download URL: ${fe.message}'; _isUploading = false; _fileTasks[name] = null; });
-          ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Upload failed: ${fe.message}')));
-        } catch (e, st) {
-          debugPrint('Unexpected error getting download URL for $name on retry: $e\n$st');
-          if (!mounted) return;
-          setState(() { _fileErrors[name] = e.toString(); _isUploading = false; _fileTasks[name] = null; });
-          ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Upload failed: $e')));
-        }
-      } else {
-        debugPrint('Retry upload task did not complete successfully for $name. state=${snapshot.state}');
-        if (!mounted) return;
-        setState(() { _fileErrors[name] = 'Upload did not complete successfully (${snapshot.state})'; _isUploading = false; _fileTasks[name] = null; });
-        ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Upload failed: ${snapshot.state}')));
-      }
-    } on PlatformException catch (pe) {
+      _fileUploading.remove(name);
+      _fileProgress.remove(name);
+      _pickedFiles.remove(name);
       if (!mounted) return;
-      setState(() { _fileErrors[name] = pe.message; _isUploading = false; _fileTasks[name] = null; });
-      ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Upload failed: ${pe.message}')));
+      setState(() { _isUploading = false; });
+      ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Uploaded $name')));
     } catch (e) {
+      debugPrint('Retry upload error for $name: $e');
       if (!mounted) return;
-      setState(() { _fileErrors[name] = e.toString(); _isUploading = false; _fileTasks[name] = null; });
+      setState(() { _fileErrors[name] = e.toString(); _isUploading = false; _fileUploading.remove(name); });
       ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Upload failed: $e')));
     }
   }

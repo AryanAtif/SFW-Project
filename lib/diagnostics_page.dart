@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
-import 'package:firebase_core/firebase_core.dart' show Firebase;
-import 'package:firebase_auth/firebase_auth.dart';
+import 'package:supabase_flutter/supabase_flutter.dart';
+import 'dart:typed_data';
 
 class DiagnosticsPage extends StatefulWidget {
   const DiagnosticsPage({super.key});
@@ -26,11 +26,17 @@ class _DiagnosticsPageState extends State<DiagnosticsPage> {
     try {
       final email = _emailController.text.trim();
       final pass = _passwordController.text;
-      final cred = await FirebaseAuth.instance.signInWithEmailAndPassword(email: email, password: pass);
-      ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Signed in as ${cred.user?.uid}')));
+      final supabase = Supabase.instance.client;
+      try {
+        // Try modern API
+        await (supabase.auth as dynamic).signInWithPassword(email: email, password: pass);
+      } catch (_) {
+        // Fallback to older API
+        await (supabase.auth as dynamic).signIn(email: email, password: pass);
+      }
+      final user = supabase.auth.currentUser;
+      ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Signed in as ${user?.id ?? 'unknown'}')));
       setState(() {});
-    } on FirebaseAuthException catch (e) {
-      ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Sign-in failed: ${e.message}')));
     } catch (e) {
       ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Sign-in failed: $e')));
     } finally {
@@ -43,11 +49,16 @@ class _DiagnosticsPageState extends State<DiagnosticsPage> {
     try {
       final email = _emailController.text.trim();
       final pass = _passwordController.text;
-      final cred = await FirebaseAuth.instance.createUserWithEmailAndPassword(email: email, password: pass);
-      ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Registered and signed in as ${cred.user?.uid}')));
+      final supabase = Supabase.instance.client;
+      try {
+        await (supabase.auth as dynamic).signUp(email: email, password: pass);
+      } catch (_) {
+        // older API fallback
+        await (supabase.auth as dynamic).signUpWithPassword(email: email, password: pass);
+      }
+      final user = supabase.auth.currentUser;
+      ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Registered and signed in as ${user?.id ?? 'unknown'}')));
       setState(() {});
-    } on FirebaseAuthException catch (e) {
-      ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Register failed: ${e.message}')));
     } catch (e) {
       ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Register failed: $e')));
     } finally {
@@ -56,19 +67,43 @@ class _DiagnosticsPageState extends State<DiagnosticsPage> {
   }
 
   Future<void> _signOut() async {
-    await FirebaseAuth.instance.signOut();
+    final supabase = Supabase.instance.client;
+    try {
+      await (supabase.auth as dynamic).signOut();
+    } catch (_) {}
     ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Signed out')));
     setState(() {});
   }
 
   Future<void> _signInAnonymously() async {
+    // Supabase does not support anonymous sign-in by default. Inform the user.
+    ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Anonymous sign-in is not supported by Supabase. Please create an account or sign in.')));
+  }
+
+  Future<void> _testUpload() async {
     setState(() => _loading = true);
     try {
-      final cred = await FirebaseAuth.instance.signInAnonymously();
-      ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Anonymous sign-in: ${cred.user?.uid}')));
-      setState(() {});
-    } catch (e) {
-      ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Anonymous sign-in failed: $e')));
+      final supabase = Supabase.instance.client;
+      final bucket = 'public';
+      final filename = 'diagnostics/test_upload_${DateTime.now().millisecondsSinceEpoch}.txt';
+      final path = filename;
+      final bytes = Uint8List.fromList('diagnostics test upload ${DateTime.now().toIso8601String()}'.codeUnits);
+
+      // Upload binary
+      await supabase.storage.from(bucket).uploadBinary(path, bytes, fileOptions: FileOptions(contentType: 'text/plain'));
+
+      // Get public URL
+      final publicUrl = supabase.storage.from(bucket).getPublicUrl(path);
+      if (publicUrl.isNotEmpty) {
+        ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Test upload succeeded: $publicUrl')));
+        debugPrint('Test upload succeeded at path=$path');
+      } else {
+        ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Test upload completed but no public URL available')));
+        debugPrint('Test upload completed but getPublicUrl returned empty');
+      }
+    } catch (e, st) {
+      debugPrint('Unexpected error during test upload: $e\n$st');
+      ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Test upload failed: $e')));
     } finally {
       setState(() => _loading = false);
     }
@@ -76,19 +111,11 @@ class _DiagnosticsPageState extends State<DiagnosticsPage> {
 
   @override
   Widget build(BuildContext context) {
-    String appName = 'n/a';
-    String projectId = 'n/a';
-    String storageBucket = 'n/a';
-    try {
-      final app = Firebase.app();
-      appName = app.name;
-  projectId = app.options.projectId;
-  storageBucket = app.options.storageBucket ?? storageBucket;
-    } catch (e) {
-      // ignore
-    }
-
-    final user = FirebaseAuth.instance.currentUser;
+  final supabase = Supabase.instance.client;
+  final appName = 'Supabase';
+    final projectId = supabase.auth.currentUser?.id ?? 'n/a';
+    final storageBucket = 'public';
+    final user = supabase.auth.currentUser;
 
     return Scaffold(
       appBar: AppBar(
@@ -101,9 +128,9 @@ class _DiagnosticsPageState extends State<DiagnosticsPage> {
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              Text('Firebase App: $appName', style: Theme.of(context).textTheme.titleMedium),
+              Text('Supabase URL: $appName', style: Theme.of(context).textTheme.titleMedium),
               const SizedBox(height: 8),
-              Text('Project ID: $projectId'),
+              Text('Current User ID: $projectId'),
               const SizedBox(height: 8),
               Text('Storage Bucket: $storageBucket'),
               const SizedBox(height: 16),
@@ -112,10 +139,10 @@ class _DiagnosticsPageState extends State<DiagnosticsPage> {
               if (user == null) ...[
                 const Text('No signed-in user'),
                 const SizedBox(height: 8),
-                const Text('If you expect anonymous sign-in to work, ensure Anonymous sign-in is enabled in Firebase Console → Authentication → Sign-in method.'),
+                const Text('Use Sign In / Register to authenticate with Supabase.'),
               ] else ...[
-                Text('UID: ${user.uid}'),
-                Text('IsAnonymous: ${user.isAnonymous}'),
+                Text('UID: ${user.id}'),
+                Text('Email: ${user.email ?? 'n/a'}'),
               ],
               const SizedBox(height: 16),
               TextField(
@@ -130,23 +157,22 @@ class _DiagnosticsPageState extends State<DiagnosticsPage> {
                 decoration: const InputDecoration(labelText: 'Password'),
               ),
               const SizedBox(height: 12),
-              Row(
+              Wrap(
+                spacing: 8,
+                runSpacing: 8,
                 children: [
                   ElevatedButton(
                     onPressed: _loading ? null : _signInWithEmail,
                     child: const Text('Sign In'),
                   ),
-                  const SizedBox(width: 8),
                   ElevatedButton(
                     onPressed: _loading ? null : _registerWithEmail,
                     child: const Text('Register'),
                   ),
-                  const SizedBox(width: 8),
                   ElevatedButton(
                     onPressed: _loading ? null : _signInAnonymously,
                     child: const Text('Sign In Anon'),
                   ),
-                  const SizedBox(width: 8),
                   ElevatedButton(
                     onPressed: (user == null || _loading) ? null : _signOut,
                     child: const Text('Sign Out'),
@@ -156,9 +182,14 @@ class _DiagnosticsPageState extends State<DiagnosticsPage> {
               const SizedBox(height: 24),
               ElevatedButton(
                 onPressed: () async {
-                  ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Open Firebase Console to review Storage rules')));
+                  ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Open Supabase Console to review Storage rules')));
                 },
-                child: const Text('Open Firebase Console'),
+                child: const Text('Open Supabase Console'),
+              ),
+              const SizedBox(height: 16),
+              ElevatedButton(
+                onPressed: _loading ? null : _testUpload,
+                child: const Text('Test Upload to Storage'),
               ),
             ],
           ),

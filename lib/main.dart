@@ -1,9 +1,8 @@
 import 'package:flutter/material.dart';
-import 'package:firebase_core/firebase_core.dart';
-import 'package:firebase_auth/firebase_auth.dart';
+import 'package:supabase_flutter/supabase_flutter.dart';
+import 'package:flutter_dotenv/flutter_dotenv.dart';
 
 import 'data_models.dart';
-import 'firebase_options.dart';
 import 'home_page.dart';
 import 'courses_page.dart';
 import 'tasks_due_page.dart';
@@ -14,21 +13,17 @@ import 'diagnostics_page.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
-  await Firebase.initializeApp(
-    options: DefaultFirebaseOptions.currentPlatform,
+  // Load environment (optional). If you provide a .env file with SUPABASE_URL
+  // and SUPABASE_ANON_KEY those will be used. Otherwise the inline defaults
+  // below are used (you should rotate/remove them for production).
+  await dotenv.load();
+  final supabaseUrl = dotenv.env['SUPABASE_URL'] ?? 'https://xgecdpvziuvwyqmrejvn.supabase.co';
+  final supabaseKey = dotenv.env['SUPABASE_ANON_KEY'] ?? 'sb_secret_TxZ-fYRTADGf4krwo716Cw_DpPXcfm8';
+
+  await Supabase.initialize(
+    url: supabaseUrl,
+    anonKey: supabaseKey,
   );
-  // Sign in anonymously so uploads are associated with a user id.
-  bool _anonSignedIn = false;
-  try {
-    final result = await FirebaseAuth.instance.signInAnonymously();
-    _anonSignedIn = result.user != null;
-    if (!_anonSignedIn) debugPrint('Anonymous sign-in returned null user');
-  } catch (e) {
-    // Log sign-in errors so we can diagnose why storage requests may lack
-    // an auth token. Common causes: anonymous sign-in not enabled in the
-    // Firebase Console or network issues.
-    debugPrint('Anonymous sign-in failed: $e');
-  }
   runApp(const StudentOrganizerApp());
 }
 
@@ -201,7 +196,7 @@ class _MainScaffoldState extends State<MainScaffold> {
       const GeminiChatPage()    
     ];
 
-    final user = FirebaseAuth.instance.currentUser;
+  final user = Supabase.instance.client.auth.currentUser;
     return WillPopScope(
       onWillPop: () async {
         if (_selectedIndex != 0) {
@@ -265,7 +260,7 @@ class _MainScaffoldState extends State<MainScaffold> {
               width: double.infinity,
               color: Colors.red.shade100,
               padding: const EdgeInsets.all(8.0),
-              child: const Text('Warning: Not signed into Firebase (anonymous sign-in failed). Uploads may be rejected. Enable Anonymous sign-in in Firebase Console.', style: TextStyle(color: Colors.red)),
+              child: const Text('Warning: Not signed in (Supabase). Uploads may be rejected or signed URLs may not be available.', style: TextStyle(color: Colors.red)),
             ),
             Expanded(child: pages[_selectedIndex]),
           ],
