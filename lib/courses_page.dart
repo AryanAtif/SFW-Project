@@ -327,193 +327,262 @@ class _CourseButton extends StatelessWidget {
     showDialog(
       context: context,
       builder: (context) {
-        return AlertDialog(
-          title: Text('Course Details: ${course.title}'),
-          content: SingleChildScrollView(
+        final theme = Theme.of(context);
+        return Dialog(
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+          child: Container(
+            width: MediaQuery.of(context).size.width * 0.9,
+            padding: const EdgeInsets.all(16),
             child: Column(
               mainAxisSize: MainAxisSize.min,
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                TextField(
-                  controller: titleController,
-                  decoration: const InputDecoration(labelText: 'Course Title'),
-                  onChanged: (value) {
-                    course.title = value;
-                    onUpdate(course);
-                  },
-                ),
-                TextField(
-                  controller: creditHoursController,
-                  decoration: const InputDecoration(labelText: 'Credit Hours'),
-                  keyboardType: TextInputType.number,
-                  onChanged: (value) {
-                    course.creditHours = int.tryParse(value) ?? course.creditHours;
-                    onUpdate(course);
-                  },
-                ),
-                TextField(
-                  controller: instructorController,
-                  decoration: const InputDecoration(labelText: 'Instructor'),
-                  onChanged: (value) {
-                    course.instructor = value;
-                    onUpdate(course);
-                  },
-                ),
-                TextField(
-                  controller: scheduleController,
-                  decoration: const InputDecoration(labelText: 'Schedule'),
-                  onChanged: (value) {
-                    course.schedule = value;
-                    onUpdate(course);
-                  },
-                ),
-                TextField(
-                  controller: descriptionController,
-                  decoration: const InputDecoration(labelText: 'Description'),
-                  maxLines: 3,
-                  onChanged: (value) {
-                    course.description = value;
-                    onUpdate(course);
-                  },
-                ),
-                const SizedBox(height: 12),
-                // Priority selector
                 Row(
                   children: [
-                    const Text('Priority: '),
-                    const SizedBox(width: 12),
-                    DropdownButton<int>(
-                      value: course.priority,
-                      items: const [
-                        DropdownMenuItem(value: 0, child: Text('Low')),
-                        DropdownMenuItem(value: 1, child: Text('Medium')),
-                        DropdownMenuItem(value: 2, child: Text('High')),
+                    Expanded(
+                      child: Text('Course Details', style: theme.textTheme.titleLarge),
+                    ),
+                    IconButton(
+                      icon: const Icon(Icons.close),
+                      onPressed: () => Navigator.pop(context),
+                    )
+                  ],
+                ),
+                const SizedBox(height: 8),
+                Divider(color: Colors.brown.shade200),
+                const SizedBox(height: 8),
+
+                // Basic info card
+                Card(
+                  color: Colors.brown.shade50,
+                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+                  child: Padding(
+                    padding: const EdgeInsets.all(12.0),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text('Basic Info', style: theme.textTheme.titleMedium),
+                        const SizedBox(height: 8),
+                        TextField(
+                          controller: titleController,
+                          decoration: const InputDecoration(labelText: 'Course Title'),
+                          onChanged: (value) {
+                            course.title = value;
+                            onUpdate(course);
+                          },
+                        ),
+                        const SizedBox(height: 8),
+                        Row(
+                          children: [
+                            Expanded(
+                              child: TextField(
+                                controller: creditHoursController,
+                                decoration: const InputDecoration(labelText: 'Credit Hours'),
+                                keyboardType: TextInputType.number,
+                                onChanged: (value) {
+                                  course.creditHours = int.tryParse(value) ?? course.creditHours;
+                                  onUpdate(course);
+                                },
+                              ),
+                            ),
+                            const SizedBox(width: 12),
+                            Expanded(
+                              child: TextField(
+                                controller: instructorController,
+                                decoration: const InputDecoration(labelText: 'Instructor'),
+                                onChanged: (value) {
+                                  course.instructor = value;
+                                  onUpdate(course);
+                                },
+                              ),
+                            ),
+                          ],
+                        ),
+                        const SizedBox(height: 8),
+                        TextField(
+                          controller: scheduleController,
+                          decoration: const InputDecoration(labelText: 'Schedule'),
+                          onChanged: (value) {
+                            course.schedule = value;
+                            onUpdate(course);
+                          },
+                        ),
+                        const SizedBox(height: 8),
+                        TextField(
+                          controller: descriptionController,
+                          decoration: const InputDecoration(labelText: 'Description'),
+                          maxLines: 3,
+                          onChanged: (value) {
+                            course.description = value;
+                            onUpdate(course);
+                          },
+                        ),
                       ],
-                      onChanged: (v) {
-                        if (v != null) {
-                          course.priority = v;
-                          onUpdate(course);
-                        }
+                    ),
+                  ),
+                ),
+
+                const SizedBox(height: 12),
+
+                // Priority and assessments
+                Row(
+                  children: [
+                    Expanded(child: Text('Priority', style: theme.textTheme.titleMedium)),
+                    ToggleButtons(
+                      isSelected: [course.priority==0, course.priority==1, course.priority==2],
+                      onPressed: (i) {
+                        course.priority = i;
+                        onUpdate(course);
+                        (context as Element).markNeedsBuild();
                       },
+                      children: const [Text('Low'), Text('Med'), Text('High')],
+                      color: Colors.brown,
+                      selectedColor: Colors.white,
+                      fillColor: Colors.brown,
                     ),
                   ],
                 ),
-                const SizedBox(height: 12),
-                // Weightages management
-                const Text('Assessment Types & Weightages', style: TextStyle(fontWeight: FontWeight.bold)),
-                const SizedBox(height: 8),
-                ...course.weightages.entries.map((entry) {
-                  final type = entry.key;
-                  final weightController = TextEditingController(text: entry.value.toString());
-                  return Row(
-                    children: [
-                      Expanded(child: Text(type)),
-                      SizedBox(
-                        width: 80,
-                        child: TextField(
-                          controller: weightController,
-                          keyboardType: TextInputType.numberWithOptions(decimal: true),
-                          decoration: const InputDecoration(suffixText: '%'),
-                          onSubmitted: (val) {
-                            final parsed = double.tryParse(val) ?? entry.value;
-                            course.weightages[type] = (parsed/100).clamp(0.0, 1.0);
-                            onUpdate(course);
-                          },
-                        ),
-                      ),
-                      IconButton(
-                        icon: const Icon(Icons.delete_outline, size: 20),
-                        onPressed: () {
-                          course.weightages.remove(type);
-                          onUpdate(course);
-                        },
-                      )
-                    ],
-                  );
-                }).toList(),
-                const SizedBox(height: 8),
-                _AddWeightageRow(course: course, onUpdate: onUpdate),
-                const SizedBox(height: 12),
-                // Scores management
-                const Text('Scores', style: TextStyle(fontWeight: FontWeight.bold)),
-                const SizedBox(height: 8),
-                ...course.scores.asMap().entries.map((e) {
-                  final idx = e.key;
-                  final s = e.value;
-                  final scoreController = TextEditingController(text: s.value.toString());
-                  return Row(
-                    children: [
-                      Expanded(child: Text(s.type)),
-                      SizedBox(
-                        width: 80,
-                        child: TextField(
-                          controller: scoreController,
-                          keyboardType: TextInputType.numberWithOptions(decimal: true),
-                          onSubmitted: (val) {
-                            final parsed = double.tryParse(val) ?? s.value;
-                            s.value = parsed.clamp(0.0, 100.0);
-                            onUpdate(course);
-                          },
-                        ),
-                      ),
-                      IconButton(
-                        icon: const Icon(Icons.delete_outline, size: 20),
-                        onPressed: () {
-                          course.scores.removeAt(idx);
-                          onUpdate(course);
-                        },
-                      )
-                    ],
-                  );
-                }).toList(),
-                const SizedBox(height: 8),
-                _AddScoreRow(course: course, onUpdate: onUpdate),
-                const SizedBox(height: 12),
-                // Computed final grade
-                Builder(builder: (context) {
-                  double computeFinal() {
-                    if (course.weightages.isEmpty || course.scores.isEmpty) return 0.0;
-                    // group scores by type and compute average per type
-                    final Map<String, List<double>> grouped = {};
-                    for (final s in course.scores) {
-                      grouped.putIfAbsent(s.type, () => []).add(s.value);
-                    }
-                    double total = 0.0;
-                    for (final entry in grouped.entries) {
-                      final type = entry.key;
-                      final avg = entry.value.reduce((a,b) => a+b)/entry.value.length;
-                      final weight = course.weightages[type] ?? 0.0;
-                      total += avg * weight;
-                    }
-                    return total;
-                  }
 
-                  final finalPercent = computeFinal();
-                  return Text('Estimated Final: ${finalPercent.toStringAsFixed(2)}%');
-                }),
-                const SizedBox(height: 20),
-                ElevatedButton.icon(
-                  onPressed: () {
-                    /*ScaffoldMessenger.of(context).showSnackBar(
-                      const SnackBar(content: Text('Document upload feature coming soon!')),
-                    );*/
-                  },
-                  icon: const Icon(Icons.upload_file),
-                  label: const Text('Upload Documents'),
-                  style: ElevatedButton.styleFrom(
-                    backgroundColor: Colors.brown[600],
-                    foregroundColor: Colors.white,
+                const SizedBox(height: 12),
+
+                Card(
+                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+                  child: Padding(
+                    padding: const EdgeInsets.all(12.0),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text('Assessment Types & Weightages', style: theme.textTheme.titleMedium),
+                        const SizedBox(height: 8),
+                        ...course.weightages.entries.map((entry) {
+                          final type = entry.key;
+                          final weightController = TextEditingController(text: (entry.value*100).toStringAsFixed(0));
+                          return Padding(
+                            padding: const EdgeInsets.symmetric(vertical: 6.0),
+                            child: Row(
+                              children: [
+                                Expanded(child: Text(type)),
+                                SizedBox(
+                                  width: 90,
+                                  child: TextField(
+                                    controller: weightController,
+                                    keyboardType: TextInputType.numberWithOptions(decimal: true),
+                                    decoration: const InputDecoration(suffixText: '%'),
+                                    onSubmitted: (val) {
+                                      final parsed = double.tryParse(val) ?? (entry.value*100);
+                                      course.weightages[type] = (parsed/100).clamp(0.0, 1.0);
+                                      onUpdate(course);
+                                    },
+                                  ),
+                                ),
+                                IconButton(
+                                  icon: const Icon(Icons.delete_outline, size: 20),
+                                  onPressed: () {
+                                    course.weightages.remove(type);
+                                    onUpdate(course);
+                                  },
+                                )
+                              ],
+                            ),
+                          );
+                        }).toList(),
+                        const SizedBox(height: 8),
+                        _AddWeightageRow(course: course, onUpdate: onUpdate),
+                      ],
+                    ),
+                  ),
+                ),
+
+                const SizedBox(height: 12),
+
+                Card(
+                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+                  child: Padding(
+                    padding: const EdgeInsets.all(12.0),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text('Scores', style: theme.textTheme.titleMedium),
+                        const SizedBox(height: 8),
+                        ...course.scores.asMap().entries.map((e) {
+                          final idx = e.key;
+                          final s = e.value;
+                          final scoreController = TextEditingController(text: s.value.toString());
+                          return Padding(
+                            padding: const EdgeInsets.symmetric(vertical: 6.0),
+                            child: Row(
+                              children: [
+                                Expanded(child: Text(s.type)),
+                                SizedBox(
+                                  width: 90,
+                                  child: TextField(
+                                    controller: scoreController,
+                                    keyboardType: TextInputType.numberWithOptions(decimal: true),
+                                    onSubmitted: (val) {
+                                      final parsed = double.tryParse(val) ?? s.value;
+                                      s.value = parsed.clamp(0.0, 100.0);
+                                      onUpdate(course);
+                                    },
+                                  ),
+                                ),
+                                IconButton(
+                                  icon: const Icon(Icons.delete_outline, size: 20),
+                                  onPressed: () {
+                                    course.scores.removeAt(idx);
+                                    onUpdate(course);
+                                  },
+                                )
+                              ],
+                            ),
+                          );
+                        }).toList(),
+                        const SizedBox(height: 8),
+                        _AddScoreRow(course: course, onUpdate: onUpdate),
+                        const SizedBox(height: 8),
+                        Builder(builder: (context) {
+                          double computeFinal() {
+                            if (course.weightages.isEmpty || course.scores.isEmpty) return 0.0;
+                            final Map<String, List<double>> grouped = {};
+                            for (final s in course.scores) {
+                              grouped.putIfAbsent(s.type, () => []).add(s.value);
+                            }
+                            double total = 0.0;
+                            for (final entry in grouped.entries) {
+                              final type = entry.key;
+                              final avg = entry.value.reduce((a,b) => a+b)/entry.value.length;
+                              final weight = course.weightages[type] ?? 0.0;
+                              total += avg * weight;
+                            }
+                            return total;
+                          }
+
+                          final finalPercent = computeFinal();
+                          return Text('Estimated Final: ${finalPercent.toStringAsFixed(2)}%', style: theme.textTheme.titleMedium);
+                        }),
+                      ],
+                    ),
+                  ),
+                ),
+
+                const SizedBox(height: 12),
+                Center(
+                  child: ElevatedButton.icon(
+                    onPressed: () {
+                      ScaffoldMessenger.of(context).showSnackBar(
+                        const SnackBar(content: Text('Document upload feature coming soon!')),
+                      );
+                    },
+                    icon: const Icon(Icons.upload_file),
+                    label: const Text('Upload Documents'),
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: Colors.brown[600],
+                      foregroundColor: Colors.white,
+                    ),
                   ),
                 ),
               ],
             ),
           ),
-          actions: [
-            TextButton(
-              onPressed: () => Navigator.pop(context),
-              child: const Text('Close'),
-            ),
-          ],
         );
       },
     ).then((_) {
