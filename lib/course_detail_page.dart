@@ -4,24 +4,16 @@ import 'package:flutter/services.dart';
 import 'package:flutter/material.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'supabase_helper.dart';
+import 'document_retrieval_helper.dart';
 import 'package:file_selector/file_selector.dart';
 // Firebase Auth removed; using Supabase Auth
 import 'package:url_launcher/url_launcher.dart';
 
 import 'data_models.dart';
 
-enum _UploadStatus { pending, uploading, done, error, cancelled }
-
-class _UploadItem {
-  final String name;
-  final XFile file;
-  double progress = 0.0; // 0.0 - 1.0; Supabase upload is a single call so we use indeterminate progress
-  _UploadStatus status = _UploadStatus.pending;
-  String? error;
-  String? downloadUrl;
-
-  _UploadItem({required this.name, required this.file});
-}
+// Removed unused enum and class
+// enum _UploadStatus { pending, uploading, done, error, cancelled }
+// class _UploadItem { ... }
 
 class CourseDetailPage extends StatefulWidget {
   final Course course;
@@ -55,6 +47,23 @@ class _CourseDetailPageState extends State<CourseDetailPage> {
     _instructorController = TextEditingController(text: c.instructor);
     _descriptionController = TextEditingController(text: c.description);
     _scheduleController = TextEditingController(text: c.schedule);
+    
+    // Load documents from Supabase
+    _loadDocuments();
+  }
+
+  Future<void> _loadDocuments() async {
+    try {
+      final docs = await DocumentRetrievalHelper.fetchDocumentsForCourse(widget.course.title);
+      if (mounted) {
+        setState(() {
+          widget.course.documents = docs;
+        });
+      }
+    } catch (e) {
+      debugPrint('Error loading documents: $e');
+      // Silently fail; documents list remains empty
+    }
   }
 
   @override
@@ -407,11 +416,43 @@ class _CourseDetailPageState extends State<CourseDetailPage> {
                     Text('Documents', style: theme.textTheme.titleMedium),
                     const SizedBox(height: 8),
                     if (widget.course.documents.isEmpty) Text('No documents uploaded yet.', style: theme.textTheme.bodyMedium),
-                    ...widget.course.documents.map((d) => ListTile(
-                          title: Text(d.name),
-                          subtitle: Text('by ${d.uploadedBy} • ${d.uploadedAt.toLocal().toString().split('.').first}'),
-                          trailing: IconButton(icon: const Icon(Icons.open_in_new), onPressed: () => _openUrl(d.url)),
-                        )),
+                    ...widget.course.documents.map((d) => Card(
+                      color: Colors.brown.shade50,
+                      child: Padding(
+                        padding: const EdgeInsets.all(8.0),
+                        child: Row(
+                          children: [
+                            Expanded(
+                              child: Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  Text(d.name, style: const TextStyle(fontWeight: FontWeight.bold)),
+                                  const SizedBox(height: 4),
+                                  Text('Uploaded by ${d.uploadedBy}', style: theme.textTheme.bodySmall),
+                                  Text(d.uploadedAt.toLocal().toString().split('.').first, style: theme.textTheme.bodySmall),
+                                ],
+                              ),
+                            ),
+                            const SizedBox(width: 8),
+                            IconButton(
+                              icon: const Icon(Icons.download),
+                              tooltip: 'Download',
+                              onPressed: () => _downloadFile(d.name, d.url),
+                            ),
+                            IconButton(
+                              icon: const Icon(Icons.open_in_new),
+                              tooltip: 'Open in browser',
+                              onPressed: () => _openUrl(d.url),
+                            ),
+                            IconButton(
+                              icon: const Icon(Icons.delete_outline),
+                              tooltip: 'Delete',
+                              onPressed: () => _deleteDocument(d.name, d.url),
+                            ),
+                          ],
+                        ),
+                      ),
+                    )).toList(),
                   ],
                 ),
               ),
@@ -450,10 +491,7 @@ class _CourseDetailPageState extends State<CourseDetailPage> {
         _fileUploading[filename] = true;
         final safeCourseId = widget.course.title.isNotEmpty ? widget.course.title.replaceAll(' ', '_') : 'untitled_course';
 
-        // Use Supabase storage. Default to 'public' bucket; change if you use
-        // a different bucket name in your Supabase project.
-        final supabase = Supabase.instance.client;
-        final bucket = 'public';
+        // Use Supabase storage via SupabaseHelper (which reads bucket from .env)
         final path = 'courses/$safeCourseId/$filename';
 
         // Determine a conservative content type from file extension.
@@ -475,6 +513,19 @@ class _CourseDetailPageState extends State<CourseDetailPage> {
           final doc = CourseDocument(name: filename, url: fileUrl, uploadedBy: uploaderId);
           widget.course.documents.add(doc);
           widget.onUpdate(widget.course);
+
+          // Save to persistent storage (Supabase documents table)
+          try {
+            await DocumentRetrievalHelper.saveDocument(
+              courseTitle: widget.course.title,
+              fileName: filename,
+              fileUrl: fileUrl,
+              uploadedBy: uploaderId,
+            );
+          } catch (dbError) {
+            debugPrint('Warning: Document saved to memory but failed to persist to DB: $dbError');
+            // Continue anyway; document is in memory even if DB save fails
+          }
 
           // mark done
           _fileUploading.remove(filename);
@@ -527,6 +578,74 @@ class _CourseDetailPageState extends State<CourseDetailPage> {
       _fileUploading.remove(name);
       _fileErrors[name] = 'Cancelled';
       setState(() {});
+    }
+  }
+
+  Future<void> _downloadFile(String filename, String fileUrl) async {
+    try {
+      // Parse the URL to extract the storage path
+      // URL format: https://projectid.supabase.co/storage/v1/object/public/bucket/path/to/file
+      final uri = Uri.parse(fileUrl);
+      
+      // Try to open the URL directly (which may trigger browser download or open file)
+      if (await canLaunchUrl(uri)) {
+        await launchUrl(uri, mode: LaunchMode.externalApplication);
+        if (!mounted) return;
+        ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Opening $filename...')));
+      } else {
+        if (!mounted) return;
+        ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Could not open file')));
+      }
+    } catch (e) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Download failed: $e')));
+    }
+  }
+
+  Future<void> _deleteDocument(String filename, String fileUrl) async {
+    // Show confirmation dialog
+    if (!mounted) return;
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text('Delete Document'),
+        content: Text('Are you sure you want to delete "$filename"?'),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx, false),
+            child: const Text('Cancel'),
+          ),
+          TextButton(
+            onPressed: () => Navigator.pop(ctx, true),
+            child: const Text('Delete', style: TextStyle(color: Colors.red)),
+          ),
+        ],
+      ),
+    );
+
+    if (confirmed != true) return;
+
+    try {
+      // Delete from Supabase documents table
+      await DocumentRetrievalHelper.deleteDocument(
+        courseTitle: widget.course.title,
+        fileName: filename,
+        fileUrl: fileUrl,
+        deleteFromStorage: true,
+      );
+
+      // Remove from local course.documents list
+      setState(() {
+        widget.course.documents.removeWhere((d) => d.name == filename);
+      });
+      widget.onUpdate(widget.course);
+
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Deleted $filename')));
+    } catch (e) {
+      debugPrint('Delete document error: $e');
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Delete failed: $e')));
     }
   }
 

@@ -27,7 +27,7 @@ class SupabaseHelper {
     } catch (_) {
       defaultBucket = null;
     }
-    defaultBucket ??= 'public';
+    defaultBucket ??= 'bucket1';  // Changed from 'public' to match your setup
     final bucketToUse = bucket ?? defaultBucket;
     bool bucketPrivate = false;
     try {
@@ -45,6 +45,8 @@ class SupabaseHelper {
       );
     } catch (e) {
       final msg = e.toString();
+      bool uploadSucceeded = false;
+      
       // If the error is a missing bucket and a service role key is available,
       // attempt to create the bucket automatically (useful for initial setup).
       if (msg.toLowerCase().contains('bucket not found') || msg.toLowerCase().contains('bucket')) {
@@ -77,25 +79,32 @@ class SupabaseHelper {
               try {
                 await (admin.storage as dynamic).createBucket(bucketToUse);
               } catch (_) {
-                // ignore - creation failed
+                // ignore - creation failed, will retry with original storage client
               }
             }
 
-            // Retry upload once
-            await storage.from(bucketToUse).uploadBinary(
-              path,
-              bytes,
-              fileOptions: FileOptions(contentType: contentType),
-            );
-          } catch (createErr) {
-            throw Exception('Failed to upload to storage bucket "$bucketToUse" and auto-create attempt failed: $createErr');
+            // Retry upload once with the default (anon) client
+            try {
+              await storage.from(bucketToUse).uploadBinary(
+                path,
+                bytes,
+                fileOptions: FileOptions(contentType: contentType),
+              );
+              uploadSucceeded = true;
+            } catch (_) {
+              // Retry failed; re-throw the original error below
+            }
+          } catch (_) {
+            // Admin client creation failed; will throw original error below
           }
         }
-
       }
 
-      // Provide a clearer message if the bucket doesn't exist or permissions fail
-      throw Exception('Failed to upload to storage bucket "$bucketToUse": $e');
+      // If upload succeeded after auto-create, return the URL.
+      // Otherwise, provide a clearer message if the bucket doesn't exist or permissions fail.
+      if (!uploadSucceeded) {
+        throw Exception('Failed to upload to storage bucket "$bucketToUse": $e');
+      }
     }
 
     return getFileUrl(path, bucket: bucketToUse, signed: signedToUse, signedExpiry: signedExpiry);
@@ -116,7 +125,7 @@ class SupabaseHelper {
     } catch (_) {
       defaultBucket2 = null;
     }
-    defaultBucket2 ??= 'public';
+    defaultBucket2 ??= 'bucket1';  // Changed from 'public' to match your setup
     final bucketToUse = bucket ?? defaultBucket2;
     bool bucketPrivate2 = false;
     try {
