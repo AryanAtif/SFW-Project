@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'dart:typed_data';
+import 'supabase_helper.dart';
 
 class DiagnosticsPage extends StatefulWidget {
   const DiagnosticsPage({super.key});
@@ -83,26 +84,32 @@ class _DiagnosticsPageState extends State<DiagnosticsPage> {
   Future<void> _testUpload() async {
     setState(() => _loading = true);
     try {
-      final supabase = Supabase.instance.client;
-      final bucket = 'public';
       final filename = 'diagnostics/test_upload_${DateTime.now().millisecondsSinceEpoch}.txt';
       final path = filename;
       final bytes = Uint8List.fromList('diagnostics test upload ${DateTime.now().toIso8601String()}'.codeUnits);
 
-      // Upload binary
-      await supabase.storage.from(bucket).uploadBinary(path, bytes, fileOptions: FileOptions(contentType: 'text/plain'));
-
-      // Get public URL
-      final publicUrl = supabase.storage.from(bucket).getPublicUrl(path);
-      if (publicUrl.isNotEmpty) {
-        ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Test upload succeeded: $publicUrl')));
+      // Upload via helper which will use configured bucket and signed URL
+      final fileUrl = await SupabaseHelper.uploadBytes(bytes, path, contentType: 'text/plain');
+      if (fileUrl.isNotEmpty) {
+        ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Test upload succeeded: $fileUrl')));
         debugPrint('Test upload succeeded at path=$path');
       } else {
-        ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Test upload completed but no public URL available')));
-        debugPrint('Test upload completed but getPublicUrl returned empty');
+        ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Test upload completed but no URL available')));
+        debugPrint('Test upload completed but returned empty URL');
       }
     } catch (e, st) {
       debugPrint('Unexpected error during test upload: $e\n$st');
+      final msg = e.toString();
+      if (msg.contains('storage bucket') || msg.toLowerCase().contains('bucket')) {
+        // Provide actionable guidance to fix common "bucket not found" misconfiguration.
+        showDialog(context: context, builder: (ctx) => AlertDialog(
+          title: const Text('Storage bucket error'),
+          content: const Text('The storage upload failed and it looks like the configured bucket may not exist or your service role lacks permissions.\n\nPlease check your Supabase project Storage -> Buckets and either create the bucket or set SUPABASE_STORAGE_BUCKET in your .env to the correct bucket name.'),
+          actions: [
+            TextButton(onPressed: () => Navigator.pop(ctx), child: const Text('OK')),
+          ],
+        ));
+      }
       ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Test upload failed: $e')));
     } finally {
       setState(() => _loading = false);

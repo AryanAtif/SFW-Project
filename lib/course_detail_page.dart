@@ -3,6 +3,7 @@ import 'package:flutter/services.dart';
 // import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:flutter/material.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
+import 'supabase_helper.dart';
 import 'package:file_selector/file_selector.dart';
 // Firebase Auth removed; using Supabase Auth
 import 'package:url_launcher/url_launcher.dart';
@@ -466,15 +467,12 @@ class _CourseDetailPageState extends State<CourseDetailPage> {
         try {
           final bytes = await picked.readAsBytes();
 
-          // Supabase storage upload (binary)
-          await supabase.storage.from(bucket).uploadBinary(path, bytes, fileOptions: FileOptions(contentType: contentType));
-
-          // Try to get a public URL. This returns a string when using the
-          // current Supabase SDK.
-          String publicUrl = supabase.storage.from(bucket).getPublicUrl(path);
+          // Use the central helper which will consult .env for the bucket and
+          // whether signed URLs are required.
+          final fileUrl = await SupabaseHelper.uploadBytes(bytes, path, contentType: contentType);
 
           final uploaderId = Supabase.instance.client.auth.currentUser?.id ?? 'unknown';
-          final doc = CourseDocument(name: filename, url: publicUrl, uploadedBy: uploaderId);
+          final doc = CourseDocument(name: filename, url: fileUrl, uploadedBy: uploaderId);
           widget.course.documents.add(doc);
           widget.onUpdate(widget.course);
 
@@ -487,6 +485,17 @@ class _CourseDetailPageState extends State<CourseDetailPage> {
           ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Uploaded $filename')));
         } catch (e, st) {
           debugPrint('Supabase upload error for $filename: $e\n$st');
+          final msg = e.toString();
+          if (msg.toLowerCase().contains('bucket') || msg.toLowerCase().contains('not found')) {
+            // Show a helpful dialog directing the developer to configure the bucket
+            if (mounted) {
+              showDialog(context: context, builder: (ctx) => AlertDialog(
+                title: const Text('Storage bucket error'),
+                content: const Text('Upload failed because the configured storage bucket may not exist or lacks permissions.\n\nPlease create the bucket in Supabase Storage or set SUPABASE_STORAGE_BUCKET in your .env to the correct bucket name.'),
+                actions: [TextButton(onPressed: () => Navigator.pop(ctx), child: const Text('OK'))],
+              ));
+            }
+          }
           _fileErrors[filename] = e.toString();
           _fileUploading.remove(filename);
         }
@@ -532,9 +541,7 @@ class _CourseDetailPageState extends State<CourseDetailPage> {
     setState(() { _fileErrors[name] = null; _fileProgress[name] = 0.0; _isUploading = true; _fileUploading[name] = true; });
 
     final safeCourseId = widget.course.title.isNotEmpty ? widget.course.title.replaceAll(' ', '_') : 'untitled_course';
-    final supabase = Supabase.instance.client;
-    final bucket = 'public';
-    final path = 'courses/$safeCourseId/$name';
+  final path = 'courses/$safeCourseId/$name';
     try {
       // Determine content type
       String contentType = 'application/octet-stream';
@@ -543,26 +550,32 @@ class _CourseDetailPageState extends State<CourseDetailPage> {
       else if (lower.endsWith('.png')) contentType = 'image/png';
       else if (lower.endsWith('.jpg') || lower.endsWith('.jpeg')) contentType = 'image/jpeg';
       else if (lower.endsWith('.txt')) contentType = 'text/plain';
-      final bytes = await picked.readAsBytes();
+    final bytes = await picked.readAsBytes();
+    final fileUrl = await SupabaseHelper.uploadBytes(bytes, path, contentType: contentType);
 
-      await supabase.storage.from(bucket).uploadBinary(path, bytes, fileOptions: FileOptions(contentType: contentType));
+    final uploaderId = Supabase.instance.client.auth.currentUser?.id ?? 'unknown';
+    final doc = CourseDocument(name: name, url: fileUrl, uploadedBy: uploaderId);
+    widget.course.documents.add(doc);
+    widget.onUpdate(widget.course);
 
-      // get public url
-  final publicUrl = supabase.storage.from(bucket).getPublicUrl(path);
-
-  final uploaderId = Supabase.instance.client.auth.currentUser?.id ?? 'unknown';
-      final doc = CourseDocument(name: name, url: publicUrl, uploadedBy: uploaderId);
-      widget.course.documents.add(doc);
-      widget.onUpdate(widget.course);
-
-      _fileUploading.remove(name);
-      _fileProgress.remove(name);
-      _pickedFiles.remove(name);
-      if (!mounted) return;
-      setState(() { _isUploading = false; });
-      ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Uploaded $name')));
+    _fileUploading.remove(name);
+    _fileProgress.remove(name);
+    _pickedFiles.remove(name);
+    if (!mounted) return;
+    setState(() { _isUploading = false; });
+    ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Uploaded $name')));
     } catch (e) {
       debugPrint('Retry upload error for $name: $e');
+      final msg = e.toString();
+      if (msg.toLowerCase().contains('bucket') || msg.toLowerCase().contains('not found')) {
+        if (mounted) {
+          showDialog(context: context, builder: (ctx) => AlertDialog(
+            title: const Text('Storage bucket error'),
+            content: const Text('Retry failed because the configured storage bucket may not exist or lacks permissions.\n\nPlease create the bucket in Supabase Storage or set SUPABASE_STORAGE_BUCKET in your .env to the correct bucket name.'),
+            actions: [TextButton(onPressed: () => Navigator.pop(ctx), child: const Text('OK'))],
+          ));
+        }
+      }
       if (!mounted) return;
       setState(() { _fileErrors[name] = e.toString(); _isUploading = false; _fileUploading.remove(name); });
       ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Upload failed: $e')));
