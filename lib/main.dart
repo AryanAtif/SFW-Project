@@ -2,8 +2,7 @@ import 'dart:async';
 
 import 'package:flutter/material.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
-// dotenv temporarily removed to avoid runtime init errors on some devices.
-// To enable .env support again, re-add flutter_dotenv and load it safely.
+import 'package:flutter_dotenv/flutter_dotenv.dart';
 
 import 'data_models.dart';
 import 'home_page.dart';
@@ -14,6 +13,7 @@ import 'ai_assistant_page.dart';
 import 'gemini_chat_page.dart';
 import 'diagnostics_page.dart';
 import 'auth_page.dart';
+import 'sign_out_page.dart';
 
 void main() async {
   // Run the whole bootstrap inside a guarded zone so the binding is created
@@ -28,10 +28,25 @@ void main() async {
       _showFatalError(details.exceptionAsString(), details.stack?.toString() ?? '');
     };
 
-    // Use inline Supabase credentials for now to avoid startup failures.
-    // Replace with secure environment loading in a follow-up change.
-    final supabaseUrl = 'https://xgecdpvziuvwyqmrejvn.supabase.co';
-    final supabaseKey = 'sb_secret_TxZ-fYRTADGf4krwo716Cw_DpPXcfm8';
+    // Attempt to load configuration from a .env file. If loading fails
+    // we fall back to the inline values (so the app can still boot) but
+    // prefer placing secrets in a .env file and NOT checking that file
+    // into source control.
+    String? supabaseUrl;
+    String? supabaseKey;
+
+    try {
+      await dotenv.load(fileName: '.env');
+      supabaseUrl = dotenv.env['SUPABASE_URL'];
+      supabaseKey = dotenv.env['SUPABASE_ANON_KEY'];
+    } catch (_) {
+      // Ignore dotenv load errors; we'll fall back to inline values below.
+    }
+
+    // Inline fallback (keep as short-lived convenience). Replace these
+    // with values in `.env` in production and rotate keys appropriately.
+    supabaseUrl ??= 'https://xgecdpvziuvwyqmrejvn.supabase.co';
+    supabaseKey ??= 'sb_secret_TxZ-fYRTADGf4krwo716Cw_DpPXcfm8';
 
     try {
       await Supabase.initialize(
@@ -284,9 +299,31 @@ class _MainScaffoldState extends State<MainScaffold> {
         child: ListView(
           padding: EdgeInsets.zero,
           children: <Widget>[
-            const DrawerHeader(
-              decoration: BoxDecoration(color: Color(0xFFD6B59D)),
-              child: Text(''), 
+            DrawerHeader(
+              decoration: const BoxDecoration(color: Color(0xFFD6B59D)),
+              child: Row(
+                children: [
+                  CircleAvatar(
+                    backgroundColor: Colors.brown.shade800,
+                    child: Text(
+                      (user?.email ?? user?.id ?? 'U').substring(0, 1).toUpperCase(),
+                      style: const TextStyle(color: Colors.white),
+                    ),
+                  ),
+                  const SizedBox(width: 12),
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      mainAxisAlignment: MainAxisAlignment.center,
+                      children: [
+                        Text(user?.email ?? user?.id ?? 'Not signed in', style: const TextStyle(color: Colors.black, fontWeight: FontWeight.bold)),
+                        const SizedBox(height: 4),
+                        Text(user == null ? 'Guest' : 'Signed in', style: const TextStyle(color: Colors.black87)),
+                      ],
+                    ),
+                  ),
+                ],
+              ),
             ),
             _buildDrawerItem(title: 'Home', index: 0, context: context),
             _buildDrawerItem(title: 'Courses', index: 1, context: context),
@@ -300,6 +337,16 @@ class _MainScaffoldState extends State<MainScaffold> {
               onTap: () {
                 Navigator.pop(context);
                 Navigator.push(context, MaterialPageRoute(builder: (_) => const DiagnosticsPage()));
+              },
+            ),
+            const SizedBox(height: 24),
+            const Divider(color: Colors.white54),
+            ListTile(
+              leading: const Icon(Icons.logout, color: Colors.white),
+              title: const Text('Sign out', style: TextStyle(color: Colors.white)),
+              onTap: () {
+                Navigator.pop(context);
+                Navigator.push(context, MaterialPageRoute(builder: (_) => const SignOutPage()));
               },
             ),
           ],

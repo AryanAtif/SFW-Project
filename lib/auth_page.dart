@@ -40,12 +40,17 @@ class LoginPage extends StatefulWidget {
 class _LoginPageState extends State<LoginPage> {
   final _emailController = TextEditingController();
   final _passwordController = TextEditingController();
+  final _confirmController = TextEditingController();
+  final _nameController = TextEditingController();
   bool _loading = false;
+  bool _isRegister = false;
 
   @override
   void dispose() {
     _emailController.dispose();
     _passwordController.dispose();
+    _confirmController.dispose();
+    _nameController.dispose();
     super.dispose();
   }
 
@@ -63,7 +68,7 @@ class _LoginPageState extends State<LoginPage> {
       // Success — callback to AuthGate which will show the app.
       widget.onLoginSuccess();
     } catch (e) {
-      ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Sign-in failed: $e')));
+      if (mounted) ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Sign-in failed: $e')));
     } finally {
       if (mounted) setState(() => _loading = false);
     }
@@ -74,15 +79,31 @@ class _LoginPageState extends State<LoginPage> {
     final supabase = Supabase.instance.client;
     final email = _emailController.text.trim();
     final pass = _passwordController.text;
+    final confirm = _confirmController.text;
+    final name = _nameController.text.trim();
+
+    if (pass != confirm) {
+      if (mounted) ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Passwords do not match')));
+      setState(() => _loading = false);
+      return;
+    }
+
     try {
       try {
-        await (supabase.auth as dynamic).signUpWithPassword(email: email, password: pass);
+        await (supabase.auth as dynamic).signUpWithPassword(email: email, password: pass, options: {'data': {'name': name}});
       } catch (_) {
         await (supabase.auth as dynamic).signUp(email: email, password: pass);
       }
-      widget.onLoginSuccess();
+
+      // If signup returned a user or a session, consider the user logged in.
+      final user = supabase.auth.currentUser;
+      if (user != null) {
+        widget.onLoginSuccess();
+      } else {
+        if (mounted) ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Registration successful — check your email to confirm your account')));
+      }
     } catch (e) {
-      ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Register failed: $e')));
+      if (mounted) ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Register failed: $e')));
     } finally {
       if (mounted) setState(() => _loading = false);
     }
@@ -91,37 +112,44 @@ class _LoginPageState extends State<LoginPage> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(title: const Text('Sign in')),
+      appBar: AppBar(title: Text(_isRegister ? 'Register' : 'Sign in')),
       body: Padding(
         padding: const EdgeInsets.all(16.0),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.stretch,
-          children: [
-            TextField(
-              controller: _emailController,
-              keyboardType: TextInputType.emailAddress,
-              decoration: const InputDecoration(labelText: 'Email'),
-            ),
-            const SizedBox(height: 8),
-            TextField(
-              controller: _passwordController,
-              obscureText: true,
-              decoration: const InputDecoration(labelText: 'Password'),
-            ),
-            const SizedBox(height: 16),
-            ElevatedButton(
-              style: ElevatedButton.styleFrom(backgroundColor: Colors.brown[600]),
-              onPressed: _loading ? null : _signIn,
-              child: _loading ? const SizedBox(height: 16, width: 16, child: CircularProgressIndicator(strokeWidth: 2)) : const Text('Sign In'),
-            ),
-            const SizedBox(height: 8),
-            OutlinedButton(
-              onPressed: _loading ? null : _register,
-              child: const Text('Register'),
-            ),
-            const SizedBox(height: 12),
-            const Text('Accounts are persisted by Supabase. Once signed in the app will remember you.'),
-          ],
+        child: SingleChildScrollView(
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              if (_isRegister) TextField(controller: _nameController, decoration: const InputDecoration(labelText: 'Full name (optional)')),
+              TextField(
+                controller: _emailController,
+                keyboardType: TextInputType.emailAddress,
+                decoration: const InputDecoration(labelText: 'Email'),
+              ),
+              const SizedBox(height: 8),
+              TextField(
+                controller: _passwordController,
+                obscureText: true,
+                decoration: const InputDecoration(labelText: 'Password'),
+              ),
+              if (_isRegister) ...[
+                const SizedBox(height: 8),
+                TextField(controller: _confirmController, obscureText: true, decoration: const InputDecoration(labelText: 'Confirm password')),
+              ],
+              const SizedBox(height: 16),
+              ElevatedButton(
+                style: ElevatedButton.styleFrom(backgroundColor: Colors.brown[600]),
+                onPressed: _loading ? null : (_isRegister ? _register : _signIn),
+                child: _loading ? const SizedBox(height: 16, width: 16, child: CircularProgressIndicator(strokeWidth: 2)) : Text(_isRegister ? 'Register' : 'Sign In'),
+              ),
+              const SizedBox(height: 8),
+              TextButton(
+                onPressed: _loading ? null : () => setState(() => _isRegister = !_isRegister),
+                child: Text(_isRegister ? 'Already have an account? Sign in' : 'Don\'t have an account? Register'),
+              ),
+              const SizedBox(height: 12),
+              const Text('Accounts are persisted by Supabase. Once signed in the app will remember you.'),
+            ],
+          ),
         ),
       ),
     );
